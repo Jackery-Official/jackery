@@ -39,9 +39,9 @@ class DataTransmissionExample:
         if msg.topic == "device/data-get":
             print(f"📨 收到数据请求: {msg.payload.decode()}")
             # 模拟处理时间
-            time.sleep(0.1)
+            # time.sleep(0.1)
             # 发送模拟数据
-            self.send_device_data()
+            # self.send_device_data()
     
     def generate_sample_data(self):
         """生成模拟的设备数据"""
@@ -166,7 +166,7 @@ def main():
     example.setup_mqtt()
     
     # 启动模拟（运行60秒）
-    example.start_simulation(duration=60)
+    example.start_simulation(duration=1000)
 
 if __name__ == "__main__":
     main()
