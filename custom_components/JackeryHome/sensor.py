@@ -13,7 +13,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.const import UnitOfPower, PERCENTAGE
+from homeassistant.const import UnitOfPower, UnitOfEnergy, PERCENTAGE
 
 from . import DOMAIN
 
@@ -21,6 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # 传感器配置
 SENSORS = {
+    # 功率传感器（实时监测）
     "solar_power": {
         "name": "Solar Power",
         "unit": UnitOfPower.WATT,
@@ -69,6 +70,49 @@ SENSORS = {
         "icon": "mdi:battery-70",
         "device_class": SensorDeviceClass.BATTERY,
         "state_class": SensorStateClass.MEASUREMENT,
+    },
+    # 能源传感器（用于能源仪表板）
+    "solar_energy": {
+        "name": "Solar Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:solar-power",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+    },
+    "home_energy": {
+        "name": "Home Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:home-lightning-bolt",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+    },
+    "grid_import_energy": {
+        "name": "Grid Import Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:transmission-tower-import",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+    },
+    "grid_export_energy": {
+        "name": "Grid Export Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:transmission-tower-export",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+    },
+    "battery_charge_energy": {
+        "name": "Battery Charge Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:battery-charging",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+    },
+    "battery_discharge_energy": {
+        "name": "Battery Discharge Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:battery-minus",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
     },
 }
 
@@ -141,6 +185,12 @@ class JackeryHomeSensor(SensorEntity):
         self._attr_native_value = None
         self._attr_available = False
         self._data_task = None
+        
+        # 能源累积相关属性
+        self._is_energy_sensor = device_class == SensorDeviceClass.ENERGY
+        self._last_power_value = 0.0
+        self._last_update_time = None
+        self._total_energy = 0.0
 
     @property
     def should_poll(self) -> bool:
@@ -183,6 +233,10 @@ class JackeryHomeSensor(SensorEntity):
                         self.async_write_ha_state()
                         return
                 
+                # 处理能源传感器累积计算
+                if self._is_energy_sensor:
+                    value = self._calculate_energy_accumulation(value)
+                
                 # 更新传感器状态
                 self._attr_native_value = value
                 self._attr_available = True
@@ -206,6 +260,45 @@ class JackeryHomeSensor(SensorEntity):
         # 启动定时器，每隔5秒向 device/data-get 发送数据获取请求
         self._data_task = asyncio.create_task(self._periodic_data_request())
         
+    def _calculate_energy_accumulation(self, power_value: float) -> float:
+        """计算能源累积值（从功率转换为能源）"""
+        import time
+        
+        try:
+            current_time = time.time()
+            power_watts = float(power_value)
+            
+            # 如果是第一次更新，只记录时间和功率值
+            if self._last_update_time is None:
+                self._last_update_time = current_time
+                self._last_power_value = power_watts
+                return self._total_energy
+            
+            # 计算时间差（小时）
+            time_diff_hours = (current_time - self._last_update_time) / 3600.0
+            
+            # 计算能源增量（kWh）
+            # 使用梯形积分法：平均功率 × 时间
+            avg_power = (self._last_power_value + power_watts) / 2.0
+            energy_increment = (avg_power * time_diff_hours) / 1000.0  # 转换为kWh
+            
+            # 累积能源值
+            self._total_energy += energy_increment
+            
+            # 更新记录
+            self._last_update_time = current_time
+            self._last_power_value = power_watts
+            
+            _LOGGER.debug(f"Energy accumulation for {self._sensor_id}: "
+                         f"power={power_watts}W, time_diff={time_diff_hours:.4f}h, "
+                         f"increment={energy_increment:.6f}kWh, total={self._total_energy:.6f}kWh")
+            
+            return self._total_energy
+            
+        except (ValueError, TypeError) as e:
+            _LOGGER.error(f"Error calculating energy accumulation for {self._sensor_id}: {e}")
+            return self._total_energy
+
     async def _periodic_data_request(self) -> None:
         """Periodically send data request to device/data-get topic."""
         while True:
