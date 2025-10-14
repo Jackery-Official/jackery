@@ -1,0 +1,19 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "配置 JackeryHome",
+                "description": "设置 MQTT 主题前缀以接收能源监控数据",
+                "data": {
+                    "topic_prefix": "MQTT 主题前缀"
+                }
+            }
+        },
+        "error": {
+            "already_configured": "该集成已配置"
+        },
+        "abort": {
+            "already_configured": "该集成已配置"
+        }
+    }
+}

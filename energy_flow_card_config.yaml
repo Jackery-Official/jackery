@@ -1,0 +1,35 @@
+type: custom:energy-flow-card-plus
+entities:
+  solar:
+    entity: sensor.solar_power
+    name: 太阳能
+    icon: mdi:solar-power
+  grid:
+    entity:
+      consumption: sensor.grid_import
+      production: sensor.grid_export
+    name: 电网
+    icon: mdi:transmission-tower
+  battery:
+    entity:
+      consumption: sensor.battery_charge
+      production: sensor.battery_discharge
+    state_of_charge: sensor.battery_soc
+    name: 电池
+    icon: mdi:battery
+  home:
+    entity: sensor.home_power
+    name: 家庭用电
+    icon: mdi:home-lightning-bolt
+display_zero_lines:
+  mode: show
+  transparency: 50
+  grey_color:
+    - 189
+    - 189
+    - 189
+w_decimals: 0
+kw_decimals: 2
+color_icons: true
+animation_speed: 10
+energy_date_selection: false

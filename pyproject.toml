@@ -1,0 +1,8 @@
+[project]
+name = "home-assistant-demo-mqtt"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "paho-mqtt>=2.1.0",
+]

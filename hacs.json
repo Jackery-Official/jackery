@@ -1,0 +1,11 @@
+{
+    "name": "JackeryHome",
+    "content_in_root": false,
+    "render_readme": true,
+    "domains": [
+        "energy_monitor",
+        "mqtt"
+    ],
+    "iot_class": "Local Push",
+    "homeassistant": "2024.1.0"
+}
