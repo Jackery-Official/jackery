@@ -1,8 +1,8 @@
 # JackeryHome - Home Assistant 能源监控集成
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/suyulin/home-assistant-demo-mqtt.svg)](https://github.com/suyulin/home-assistant-demo-mqtt/releases)
-[![License](https://img.shields.io/github/license/suyulin/home-assistant-demo-mqtt.svg)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/release/suyulin/jackery_home.svg)](https://github.com/suyulin/jackery_home/releases)
+[![License](https://img.shields.io/github/license/suyulin/jackery_home.svg)](LICENSE)
 
 这是一个 Home Assistant 自定义集成，通过 MQTT 监控太阳能、电网、电池和家庭能源数据。
 
@@ -39,7 +39,7 @@
 1. **添加自定义存储库**
    - 打开 HACS
    - 点击右上角三个点 → "自定义存储库"
-   - 添加仓库 URL：`https://github.com/suyulin/home-assistant-demo-mqtt`
+   - 添加仓库 URL：`https://github.com/suyulin/jackery_home`
    - 类别选择：`Integration`
    - 点击"添加"
 
@@ -56,7 +56,7 @@
 
 ### 方式二：手动安装
 
-1. 下载最新的 [Release](https://github.com/suyulin/home-assistant-demo-mqtt/releases)
+1. 下载最新的 [Release](https://github.com/suyulin/jackery_home/releases)
 2. 将 `custom_components/JackeryHome` 文件夹复制到你的 Home Assistant 配置目录的 `custom_components/` 文件夹中
 3. 重启 Home Assistant
 4. 按照上述"配置集成"步骤进行配置

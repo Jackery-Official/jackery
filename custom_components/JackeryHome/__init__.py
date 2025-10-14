@@ -7,7 +7,7 @@ from homeassistant.const import Platform
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = "energy_monitor"
+DOMAIN = "jackery_home"
 PLATFORMS = [Platform.SENSOR]
 
 
