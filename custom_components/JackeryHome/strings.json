@@ -17,7 +17,8 @@
             "invalid_port": "端口号必须在 1-65535 范围内"
         },
         "abort": {
-            "already_configured": "该集成已配置"
+            "already_configured": "该集成已配置",
+            "single_instance_allowed": "该集成已配置"
         }
     }
 }

@@ -40,6 +40,9 @@ class JackeryHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
+        if self._async_current_entries():
+            return self.async_abort(reason="single_instance_allowed")
+        
         errors = {}
 
         if user_input is not None:
@@ -57,10 +60,6 @@ class JackeryHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_port"
             
             if not errors:
-                # 检查是否已经配置
-                await self.async_set_unique_id(DOMAIN)
-                self._abort_if_unique_id_configured()
-                
                 _LOGGER.info(f"Creating JackeryHome config entry with topic_prefix: {user_input.get('topic_prefix', 'homeassistant/sensor')}")
                 
                 return self.async_create_entry(
