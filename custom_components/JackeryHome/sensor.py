@@ -132,7 +132,7 @@ class JackeryHomeSensor(SensorEntity):
             "name": "JackeryHome",
             "manufacturer": "Jackery",
             "model": "Energy Monitor",
-            "sw_version": "1.0.3",
+            "sw_version": "1.0.4",
         }
         self._topic = f"{topic_prefix}/{sensor_id}/state"
         self._attr_native_value = None
