@@ -12,8 +12,8 @@ PLATFORMS = [Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Energy Monitor from a config entry."""
-    _LOGGER.info("Setting up Energy Monitor integration")
+    """Set up JackeryHome from a config entry."""
+    _LOGGER.info("Setting up JackeryHome integration")
     
     # 存储配置数据
     hass.data.setdefault(DOMAIN, {})
@@ -27,7 +27,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    _LOGGER.info("Unloading Energy Monitor integration")
+    _LOGGER.info("Unloading JackeryHome integration")
     
     # 卸载传感器平台
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

@@ -31,8 +31,8 @@ DATA_SCHEMA = vol.Schema(
 )
 
 
-class EnergyMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Energy Monitor."""
+class JackeryHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for JackeryHome."""
 
     VERSION = 1
 
@@ -47,10 +47,10 @@ class EnergyMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(DOMAIN)
             self._abort_if_unique_id_configured()
             
-            _LOGGER.info(f"Creating Energy Monitor config entry with topic_prefix: {user_input['topic_prefix']}")
+            _LOGGER.info(f"Creating JackeryHome config entry with topic_prefix: {user_input['topic_prefix']}")
             
             return self.async_create_entry(
-                title="Energy Monitor",
+                title="JackeryHome",
                 data=user_input,
             )
 
