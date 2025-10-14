@@ -101,7 +101,7 @@ async def async_setup_entry(
         )
         entities.append(entity)
     
-    async_add_entities(entities, True)
+    async_add_entities(entities)
     _LOGGER.info(f"Added {len(entities)} JackeryHome sensors")
 
 
@@ -132,6 +132,7 @@ class JackeryHomeSensor(SensorEntity):
             "name": "JackeryHome",
             "manufacturer": "Jackery",
             "model": "Energy Monitor",
+            "sw_version": "1.0.3",
         }
         self._topic = f"{topic_prefix}/{sensor_id}/state"
         self._attr_native_value = None
@@ -169,7 +170,11 @@ class JackeryHomeSensor(SensorEntity):
                     try:
                         value = float(payload)
                     except ValueError:
+                        # 如果无法转换为数字，保持原值但设置不可用
                         value = payload
+                        self._attr_available = False
+                        self.async_write_ha_state()
+                        return
                 
                 # 更新传感器状态
                 self._attr_native_value = value

@@ -18,7 +18,7 @@
 本项目包含两个主要部分：
 
 1. **MQTT 模拟器** (`main.py`) - 模拟发送能源监控数据到 MQTT broker
-2. **Home Assistant 自定义集成** (`custom_components/energy_monitor/`) - 接收 MQTT 数据并创建传感器实体
+2. **Home Assistant 自定义集成** (`custom_components/JackeryHome/`) - 接收 MQTT 数据并创建传感器实体
 
 ## 传感器列表
 
@@ -161,7 +161,7 @@ entities:
 
 ### 核心文件
 - `main.py`: MQTT 传感器模拟器主程序
-- `custom_components/energy_monitor/`: Home Assistant 自定义集成
+- `custom_components/JackeryHome/`: Home Assistant 自定义集成
   - `__init__.py`: 集成入口
   - `manifest.json`: 集成元数据
   - `sensor.py`: 传感器平台实现

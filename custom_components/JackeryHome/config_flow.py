@@ -43,16 +43,30 @@ class JackeryHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            # 检查是否已经配置
-            await self.async_set_unique_id(DOMAIN)
-            self._abort_if_unique_id_configured()
+            # 验证 MQTT broker 地址
+            mqtt_broker = user_input.get("mqtt_broker", "").strip()
+            if not mqtt_broker:
+                errors["base"] = "mqtt_broker_required"
             
-            _LOGGER.info(f"Creating JackeryHome config entry with topic_prefix: {user_input['topic_prefix']}")
+            # 验证端口范围
+            try:
+                mqtt_port = int(user_input.get("mqtt_port", 1883))
+                if mqtt_port < 1 or mqtt_port > 65535:
+                    errors["base"] = "invalid_port"
+            except (ValueError, TypeError):
+                errors["base"] = "invalid_port"
             
-            return self.async_create_entry(
-                title="JackeryHome",
-                data=user_input,
-            )
+            if not errors:
+                # 检查是否已经配置
+                await self.async_set_unique_id(DOMAIN)
+                self._abort_if_unique_id_configured()
+                
+                _LOGGER.info(f"Creating JackeryHome config entry with topic_prefix: {user_input.get('topic_prefix', 'homeassistant/sensor')}")
+                
+                return self.async_create_entry(
+                    title="JackeryHome",
+                    data=user_input,
+                )
 
         return self.async_show_form(
             step_id="user",
