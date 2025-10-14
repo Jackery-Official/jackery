@@ -29,14 +29,14 @@ class DataTransmissionExample:
         if rc == 0:
             print("✅ 连接到 MQTT 代理成功")
             # 订阅数据获取请求主题
-            client.subscribe("/data/data-get")
-            print("✅ 订阅 /data/data-get 主题成功")
+            client.subscribe("device/data-get")
+            print("✅ 订阅 device/data-get 主题成功")
         else:
             print(f"❌ 连接 MQTT 代理失败，错误码: {rc}")
     
     def on_message(self, client, userdata, msg):
         """MQTT 消息接收回调"""
-        if msg.topic == "/data/data-get":
+        if msg.topic == "device/data-get":
             print(f"📨 收到数据请求: {msg.payload.decode()}")
             # 模拟处理时间
             time.sleep(0.1)
@@ -94,12 +94,12 @@ class DataTransmissionExample:
         # 转换为 JSON 格式
         json_data = json.dumps(data, ensure_ascii=False, indent=2)
         
-        # 发布到 /device/data 主题
-        result = self.client.publish("/device/data", json_data)
+        # 发布到 device/data 主题
+        result = self.client.publish("device/data", json_data)
         
         if result.rc == mqtt.MQTT_ERR_SUCCESS:
             print("📤 发送设备数据:")
-            print(f"   主题: /device/data")
+            print(f"   主题: device/data")
             print(f"   数据: {json_data}")
             print()
         else:
@@ -155,8 +155,8 @@ def main():
     print("🏠 Energy Monitor 数据传输示例")
     print("=" * 50)
     print("这个示例演示了以下功能：")
-    print("1. 监听 /data/data-get 请求")
-    print("2. 响应请求并发送设备数据到 /device/data")
+    print("1. 监听 device/data-get 请求")
+    print("2. 响应请求并发送设备数据到 device/data")
     print("3. 模拟真实的能源监控数据")
     print("4. 每秒5次的数据获取频率（由 Home Assistant 集成触发）")
     print()
