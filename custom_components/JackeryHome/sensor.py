@@ -1,4 +1,5 @@
 """JackeryHome Sensor Platform."""
+import asyncio
 import json
 import logging
 from typing import Any
@@ -132,11 +133,14 @@ class JackeryHomeSensor(SensorEntity):
             "name": "JackeryHome",
             "manufacturer": "Jackery",
             "model": "Energy Monitor",
-            "sw_version": "1.0.4",
+            "sw_version": "1.0.5",
         }
         self._topic = f"{topic_prefix}/{sensor_id}/state"
+        self._data_topic = "device/data"
+        self._data_get_topic = "device/data-get"
         self._attr_native_value = None
         self._attr_available = False
+        self._data_task = None
 
     @property
     def should_poll(self) -> bool:
@@ -147,21 +151,24 @@ class JackeryHomeSensor(SensorEntity):
         """Set up the sensor."""
         _LOGGER.info(f"JackeryHome sensor {self._sensor_id} added to Home Assistant")
         
-        # 订阅 MQTT 主题
+        # 订阅 device/data topic 处理消息回调
         @callback
-        def message_received(msg):
-            """Handle new MQTT messages."""
+        def data_message_received(msg):
+            """Handle new MQTT messages from device/data topic."""
             try:
                 payload = msg.payload
                 if isinstance(payload, bytes):
                     payload = payload.decode("utf-8")
                 
-                _LOGGER.debug(f"Received MQTT message for {self._sensor_id}: {payload}")
+                _LOGGER.debug(f"Received data message for {self._sensor_id}: {payload}")
                 
                 # 尝试解析 JSON
                 try:
                     data = json.loads(payload)
-                    if isinstance(data, dict) and "value" in data:
+                    # 根据传感器ID从数据中提取对应的值
+                    if isinstance(data, dict) and self._sensor_id in data:
+                        value = data[self._sensor_id]
+                    elif isinstance(data, dict) and "value" in data:
                         value = data["value"]
                     else:
                         value = data
@@ -184,17 +191,52 @@ class JackeryHomeSensor(SensorEntity):
                 _LOGGER.debug(f"Updated {self._sensor_id} with value: {value}")
                 
             except Exception as e:
-                _LOGGER.error(f"Error processing MQTT message for {self._sensor_id}: {e}")
+                _LOGGER.error(f"Error processing data message for {self._sensor_id}: {e}")
 
-        # 订阅 MQTT 主题
+        # 订阅 device/data topic
         await ha_mqtt.async_subscribe(
             self.hass, 
-            self._topic, 
-            message_received, 
+            self._data_topic, 
+            data_message_received, 
             1
         )
         
-        _LOGGER.info(f"Subscribed to MQTT topic: {self._topic}")
+        _LOGGER.info(f"Subscribed to MQTT topic: {self._data_topic}")
+        
+        # 启动定时器，每隔5秒向 device/data-get 发送数据获取请求
+        self._data_task = asyncio.create_task(self._periodic_data_request())
+        
+    async def _periodic_data_request(self) -> None:
+        """Periodically send data request to device/data-get topic."""
+        while True:
+            try:
+                # 发送数据获取请求
+                await ha_mqtt.async_publish(
+                    self.hass,
+                    self._data_get_topic,
+                    json.dumps({"request": "data", "sensor": self._sensor_id}),
+                    1,
+                    False
+                )
+                _LOGGER.debug(f"Sent data request for {self._sensor_id} to {self._data_get_topic}")
+                
+                # 等待5秒
+                await asyncio.sleep(5)
+                
+            except Exception as e:
+                _LOGGER.error(f"Error in periodic data request for {self._sensor_id}: {e}")
+                # 出错时等待5秒再重试
+                await asyncio.sleep(5)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Clean up when sensor is removed."""
+        if self._data_task and not self._data_task.done():
+            self._data_task.cancel()
+            try:
+                await self._data_task
+            except asyncio.CancelledError:
+                pass
+        _LOGGER.info(f"JackeryHome sensor {self._sensor_id} removed from Home Assistant")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -202,4 +244,6 @@ class JackeryHomeSensor(SensorEntity):
         return {
             "sensor_id": self._sensor_id,
             "mqtt_topic": self._topic,
+            "data_topic": self._data_topic,
+            "data_get_topic": self._data_get_topic,
         }
