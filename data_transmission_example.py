@@ -18,6 +18,16 @@ class DataTransmissionExample:
         self.client = None
         self.running = False
         
+        # 初始化能源累积数据（基准从1kWh开始）
+        self.energy_data = {
+            "solar_energy": 1.0,
+            "home_energy": 1.0,
+            "grid_import_energy": 1.0,
+            "grid_export_energy": 1.0,
+            "battery_charge_energy": 1.0,
+            "battery_discharge_energy": 1.0,
+        }
+        
     def setup_mqtt(self):
         """设置 MQTT 客户端"""
         self.client = mqtt.Client(client_id="energy_device_simulator", callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
@@ -77,14 +87,37 @@ class DataTransmissionExample:
         elif battery_power < 0:  # 充电
             self.battery_soc = min(100, self.battery_soc + 0.3)
         
+        # 更新能源累积数据（每次增加0.1kWh）
+        # 根据功率值确定能源增长方向
+        if solar_power > 0:
+            self.energy_data["solar_energy"] += 0.1
+        if home_power > 0:
+            self.energy_data["home_energy"] += 0.1
+        if grid_import > 0:
+            self.energy_data["grid_import_energy"] += 0.1
+        if grid_export > 0:
+            self.energy_data["grid_export_energy"] += 0.1
+        if battery_charge > 0:
+            self.energy_data["battery_charge_energy"] += 0.1
+        if battery_discharge > 0:
+            self.energy_data["battery_discharge_energy"] += 0.1
+        
         return {
+            # 功率数据（实时监测）
             "solar_power": round(solar_power, 2),
             "home_power": round(home_power, 2),
             "grid_import": round(grid_import, 2),
             "grid_export": round(grid_export, 2),
             "battery_charge": round(battery_charge, 2),
             "battery_discharge": round(battery_discharge, 2),
-            "battery_soc": round(self.battery_soc, 1)
+            "battery_soc": round(self.battery_soc, 1),
+            # 能源数据（累积值）
+            "solar_energy": round(self.energy_data["solar_energy"], 3),
+            "home_energy": round(self.energy_data["home_energy"], 3),
+            "grid_import_energy": round(self.energy_data["grid_import_energy"], 3),
+            "grid_export_energy": round(self.energy_data["grid_export_energy"], 3),
+            "battery_charge_energy": round(self.energy_data["battery_charge_energy"], 3),
+            "battery_discharge_energy": round(self.energy_data["battery_discharge_energy"], 3),
         }
     
     def send_device_data(self):
@@ -157,8 +190,10 @@ def main():
     print("这个示例演示了以下功能：")
     print("1. 监听 device/data-get 请求")
     print("2. 响应请求并发送设备数据到 device/data")
-    print("3. 模拟真实的能源监控数据")
-    print("4. 每秒5次的数据获取频率（由 Home Assistant 集成触发）")
+    print("3. 模拟真实的能源监控数据（功率 + 能源累积）")
+    print("4. 功率数据：实时变化的功率值")
+    print("5. 能源数据：累积值，基准从1kWh开始，每次增加0.1kWh")
+    print("6. 每5秒的数据获取频率（由 Home Assistant 集成触发）")
     print()
     
     # 创建示例实例
