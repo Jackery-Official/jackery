@@ -418,6 +418,10 @@ class JackeryHomeSensor(SensorEntity):
     
     async def _periodic_data_request(self) -> None:
         """Periodically send data request to device/data-get topic."""
+        # 启动时等待一段时间，确保 MQTT 连接已建立
+        _LOGGER.info(f"Starting periodic data request for {self._sensor_id}, waiting for MQTT connection...")
+        await asyncio.sleep(2)
+        
         while True:
             try:
                 # 如果还没有设备序列号，等待一段时间再重试
@@ -428,24 +432,36 @@ class JackeryHomeSensor(SensorEntity):
                     await asyncio.sleep(REQUEST_INTERVAL)
                     continue
                 
-                # 构造并发送 data_get 格式的请求
-                request_data = self._construct_data_get_request()
-                await ha_mqtt.async_publish(
-                    self.hass,
-                    self._data_get_topic,
-                    json.dumps(request_data, ensure_ascii=False),
-                    1,
-                    False
-                )
-                _LOGGER.debug(
-                    f"Sent data_get request for {self._sensor_id} "
-                    f"(meter_sn: {self._meter_sn}) to {self._data_get_topic}"
-                )
+                # 检查 MQTT 是否可用
+                try:
+                    # 构造并发送 data_get 格式的请求
+                    request_data = self._construct_data_get_request()
+                    await ha_mqtt.async_publish(
+                        self.hass,
+                        self._data_get_topic,
+                        json.dumps(request_data, ensure_ascii=False),
+                        1,
+                        False
+                    )
+                    _LOGGER.debug(
+                        f"Sent data_get request for {self._sensor_id} "
+                        f"(meter_sn: {self._meter_sn}) to {self._data_get_topic}"
+                    )
+                except Exception as mqtt_error:
+                    # MQTT 连接错误，记录警告但继续运行
+                    _LOGGER.warning(
+                        f"MQTT not ready for {self._sensor_id}: {mqtt_error}. "
+                        f"Will retry in {REQUEST_INTERVAL} seconds..."
+                    )
                 
                 await asyncio.sleep(REQUEST_INTERVAL)
                 
+            except asyncio.CancelledError:
+                # 任务被取消时正常退出
+                _LOGGER.info(f"Periodic data request task cancelled for {self._sensor_id}")
+                raise
             except Exception as e:
-                _LOGGER.error(f"Error in periodic data request for {self._sensor_id}: {e}")
+                _LOGGER.error(f"Unexpected error in periodic data request for {self._sensor_id}: {e}")
                 await asyncio.sleep(REQUEST_INTERVAL)
 
     async def async_will_remove_from_hass(self) -> None:
