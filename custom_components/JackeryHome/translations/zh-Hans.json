@@ -3,21 +3,20 @@
         "step": {
             "user": {
                 "title": "配置 JackeryHome",
-                "description": "设置 MQTT 连接参数以接收能源监控数据",
+                "description": "设置您的 JackeryHome 能源监控集成。注意：必须先配置 MQTT 集成。",
                 "data": {
-                    "topic_prefix": "MQTT 主题前缀",
-                    "mqtt_broker": "MQTT Broker 地址",
-                    "mqtt_port": "MQTT 端口"
+                    "topic_prefix": "MQTT 主题前缀"
                 }
             }
         },
         "error": {
             "already_configured": "该集成已配置",
-            "mqtt_broker_required": "MQTT Broker 地址不能为空",
-            "invalid_port": "端口号必须在 1-65535 范围内"
+            "mqtt_not_configured": "MQTT 集成未配置或不可用。请先设置 MQTT 集成：设置 -> 设备与服务 -> 添加集成 -> MQTT",
+            "single_instance_allowed": "只允许一个此集成的实例"
         },
         "abort": {
-            "already_configured": "该集成已配置"
+            "already_configured": "该集成已配置",
+            "single_instance_allowed": "只允许一个此集成的实例"
         }
     }
 }

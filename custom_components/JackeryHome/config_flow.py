@@ -7,6 +7,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.components import mqtt
 
 from . import DOMAIN
 
@@ -19,14 +20,6 @@ DATA_SCHEMA = vol.Schema(
             "topic_prefix",
             default="homeassistant/sensor"
         ): str,
-        vol.Required(
-            "mqtt_broker",
-            default="192.168.1.100"
-        ): str,
-        vol.Optional(
-            "mqtt_port",
-            default=1883
-        ): int,
     }
 )
 
@@ -46,21 +39,14 @@ class JackeryHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            # 验证 MQTT broker 地址
-            mqtt_broker = user_input.get("mqtt_broker", "").strip()
-            if not mqtt_broker:
-                errors["base"] = "mqtt_broker_required"
-            
-            # 验证端口范围
-            try:
-                mqtt_port = int(user_input.get("mqtt_port", 1883))
-                if mqtt_port < 1 or mqtt_port > 65535:
-                    errors["base"] = "invalid_port"
-            except (ValueError, TypeError):
-                errors["base"] = "invalid_port"
-            
-            if not errors:
-                _LOGGER.info(f"Creating JackeryHome config entry with topic_prefix: {user_input.get('topic_prefix', 'homeassistant/sensor')}")
+            # 检查 MQTT 集成是否已配置
+            if not await mqtt.async_wait_for_mqtt_client(self.hass):
+                errors["base"] = "mqtt_not_configured"
+            else:
+                _LOGGER.info(
+                    f"Creating JackeryHome config entry with topic_prefix: "
+                    f"{user_input.get('topic_prefix', 'homeassistant/sensor')}"
+                )
                 
                 return self.async_create_entry(
                     title="JackeryHome",

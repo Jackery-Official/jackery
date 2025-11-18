@@ -169,39 +169,46 @@ class JackeryDataCoordinator:
         """启动协调器：订阅MQTT主题并开始定期请求数据."""
         if self._subscribed:
             return
+        
+        try:
+            # 订阅 LWT topic
+            @callback
+            def lwt_message_received(msg):
+                """处理 LWT 消息."""
+                self._handle_lwt_message(msg)
             
-        # 订阅 LWT topic
-        @callback
-        def lwt_message_received(msg):
-            """处理 LWT 消息."""
-            self._handle_lwt_message(msg)
-        
-        await ha_mqtt.async_subscribe(
-            self.hass,
-            self._gw_lwt_topic,
-            lwt_message_received,
-            1
-        )
-        _LOGGER.info(f"Coordinator subscribed to LWT topic: {self._gw_lwt_topic}")
-        
-        # 订阅数据响应 topic
-        @callback
-        def data_message_received(msg):
-            """处理数据响应消息."""
-            self._handle_data_message(msg)
-        
-        await ha_mqtt.async_subscribe(
-            self.hass,
-            self._data_topic,
-            data_message_received,
-            1
-        )
-        _LOGGER.info(f"Coordinator subscribed to data topic: {self._data_topic}")
-        
-        self._subscribed = True
-        
-        # 启动定时请求任务
-        self._data_task = asyncio.create_task(self._periodic_data_request())
+            await ha_mqtt.async_subscribe(
+                self.hass,
+                self._gw_lwt_topic,
+                lwt_message_received,
+                1
+            )
+            _LOGGER.info(f"Coordinator subscribed to LWT topic: {self._gw_lwt_topic}")
+            
+            # 订阅数据响应 topic
+            @callback
+            def data_message_received(msg):
+                """处理数据响应消息."""
+                self._handle_data_message(msg)
+            
+            await ha_mqtt.async_subscribe(
+                self.hass,
+                self._data_topic,
+                data_message_received,
+                1
+            )
+            _LOGGER.info(f"Coordinator subscribed to data topic: {self._data_topic}")
+            
+            self._subscribed = True
+            
+            # 启动定时请求任务
+            self._data_task = asyncio.create_task(self._periodic_data_request())
+            
+        except Exception as e:
+            _LOGGER.error(
+                f"Failed to start coordinator. MQTT may not be connected: {e}. "
+                "Please check your MQTT integration settings."
+            )
 
     async def async_stop(self) -> None:
         """停止协调器：取消定时任务."""
@@ -350,7 +357,9 @@ class JackeryDataCoordinator:
                     )
                 except Exception as mqtt_error:
                     _LOGGER.warning(
-                        f"MQTT not ready: {mqtt_error}. Will retry in {REQUEST_INTERVAL} seconds..."
+                        f"MQTT publish failed: {mqtt_error}. "
+                        f"Please check MQTT broker connection. "
+                        f"Will retry in {REQUEST_INTERVAL} seconds..."
                     )
                 
                 await asyncio.sleep(REQUEST_INTERVAL)

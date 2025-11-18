@@ -4,6 +4,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.const import Platform
+from homeassistant.components import mqtt
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -14,6 +15,17 @@ PLATFORMS = [Platform.SENSOR]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up JackeryHome from a config entry."""
     _LOGGER.info("Setting up JackeryHome integration")
+    
+    # 检查 MQTT 集成是否已配置和可用
+    if not await mqtt.async_wait_for_mqtt_client(hass):
+        _LOGGER.error(
+            "MQTT integration is not available or not configured. "
+            "Please set up the MQTT integration first: "
+            "Settings -> Devices & Services -> Add Integration -> MQTT"
+        )
+        return False
+    
+    _LOGGER.info("MQTT integration is available and ready")
     
     # 初始化存储结构
     hass.data.setdefault(DOMAIN, {})
