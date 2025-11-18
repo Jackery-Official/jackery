@@ -208,6 +208,7 @@ class JackeryHomeSensor(SensorEntity):
         self._attr_native_value = None
         self._attr_available = False
         self._data_task = None
+        ###TODO: 从 LWT 消息中获取设备序列号
         self._device_sn = "26392658575364"  # 设备序列号（从 LWT 消息中获取）
         self._attr_should_poll = False
         self._attr_has_entity_name = True 
