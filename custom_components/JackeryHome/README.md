@@ -14,63 +14,70 @@
 - **Battery Discharge** (电池放电功率) - 单位：W
 - **Battery State of Charge** (电池电量) - 单位：%
 
+## 前置要求
+
+⚠️ **重要：本集成依赖 Home Assistant 的 MQTT 集成**
+
+在安装 JackeryHome 之前，您必须先配置 MQTT 集成：
+
+1. 进入 Home Assistant 的 **设置** → **设备与服务**
+2. 点击 **添加集成**，搜索 **MQTT**
+3. 配置您的 MQTT broker 连接信息：
+   - **Broker**: MQTT broker 地址（例如：`localhost`、`core-mosquitto` 或 IP 地址）
+   - **Port**: 端口号（默认：`1883`）
+   - **Username/Password**: 如需要认证，请填写
+
 ## 安装步骤
 
-### 1. 复制文件到 Home Assistant
+### 方式 A：通过 HACS 安装（推荐）
 
-将 `custom_components/energy_monitor` 文件夹复制到 Home Assistant 的 `config/custom_components/` 目录下：
+1. 确保已安装 [HACS](https://hacs.xyz/)
+2. 进入 HACS → 集成
+3. 点击右上角菜单 → 自定义仓库
+4. 添加此仓库 URL 并选择类别为"集成"
+5. 搜索 "JackeryHome" 并安装
+6. 重启 Home Assistant
+
+### 方式 B：手动安装
+
+将 `custom_components/JackeryHome` 文件夹复制到 Home Assistant 的 `config/custom_components/` 目录下：
 
 ```
 config/
   custom_components/
-    energy_monitor/
+    JackeryHome/
       __init__.py
       manifest.json
       sensor.py
       config_flow.py
-      README.md
-```
-
-### 2. 重启 Home Assistant
-
-复制文件后，重启 Home Assistant 以加载新的集成。
-
-### 3. 配置集成
-
-有两种配置方式：
-
-#### 方式 A：通过 UI 配置（推荐）
-
-1. 进入 Home Assistant 的 **设置** → **设备与服务**
-2. 点击右下角的 **添加集成** 按钮
-3. 搜索 "JackeryHome"
-4. 输入 MQTT 主题前缀（默认：`homeassistant/sensor`）
-5. 点击提交完成配置
-
-#### 方式 B：通过 configuration.yaml 配置
-
-在 `configuration.yaml` 中添加：
-
-```yaml
-energy_monitor:
-  topic_prefix: "homeassistant/sensor"
+      strings.json
+      translations/
 ```
 
 然后重启 Home Assistant。
 
+### 配置集成
+
+1. 进入 Home Assistant 的 **设置** → **设备与服务**
+2. 点击右下角的 **添加集成** 按钮
+3. 搜索 "JackeryHome"
+4. 输入 MQTT 主题前缀（可选，默认：`homeassistant/sensor`）
+5. 点击提交完成配置
+
+如果 MQTT 集成未配置或不可用，将显示错误提示。
+
 ## MQTT 主题格式
 
-集成会订阅以下 MQTT 主题（假设 topic_prefix 为 `homeassistant/sensor`）：
+集成会订阅以下 MQTT 主题来接收设备数据：
 
-- `homeassistant/sensor/solar_power/state`
-- `homeassistant/sensor/home_power/state`
-- `homeassistant/sensor/grid_import/state`
-- `homeassistant/sensor/grid_export/state`
-- `homeassistant/sensor/battery_charge/state`
-- `homeassistant/sensor/battery_discharge/state`
-- `homeassistant/sensor/battery_soc/state`
+- **LWT 主题**: `v1/iot_gw/gw_lwt` - 接收设备上线/离线状态和序列号
+- **数据主题**: `v1/iot_gw/gw/data` - 接收设备响应的传感器数据
 
-每个主题接收的消息格式为纯数字，例如：`1234.56`
+集成会定期向以下主题发送数据请求：
+
+- **请求主题**: `v1/iot_gw/cloud/data` - 发送 `data_get` 命令请求传感器数据
+
+消息格式遵循 Jackery 设备的标准协议（JSON 格式），包含设备序列号、meter 列表等信息。
 
 ## 与模拟器配合使用
 
@@ -115,16 +122,36 @@ entities:
 
 ## 故障排除
 
+### MQTT 连接错误
+
+如果看到 "Host is unreachable" 或 "MQTT not ready" 错误：
+
+1. **检查 MQTT 集成**：确保 MQTT 集成已配置且连接正常
+2. **验证 Broker 地址**：确认 MQTT broker 地址和端口正确
+3. **测试连接**：在终端使用 `mosquitto_sub` 测试 MQTT 连接
+4. **查看详细日志**：启用调试日志查看更多信息
+
+详细的故障排除指南请参考：[TROUBLESHOOTING.md](../../../TROUBLESHOOTING.md)
+
 ### 传感器不显示数据
 
 1. 检查 MQTT broker 是否正常运行
-2. 检查 Home Assistant 的 MQTT 集成是否已配置
-3. 检查 `main.py` 中的 MQTT broker 地址是否正确
+2. 确认设备已连接并发送 LWT 消息到 `v1/iot_gw/gw_lwt`
+3. 使用 MQTT Explorer 监听 `v1/iot_gw/#` 主题查看消息
 4. 查看 Home Assistant 日志：**设置** → **系统** → **日志**
+5. 确认传感器属性中的 `device_sn` 是否正确
 
-### 查看 MQTT 消息
+### 启用调试日志
 
-使用 MQTT 客户端工具（如 MQTT Explorer）监听 `homeassistant/sensor/#` 主题，确认消息是否正常发布。
+在 `configuration.yaml` 中添加：
+
+```yaml
+logger:
+  default: info
+  logs:
+    custom_components.jackery_home: debug
+    homeassistant.components.mqtt: debug
+```
 
 ## 技术细节
 
