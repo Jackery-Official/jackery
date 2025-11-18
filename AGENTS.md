@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 - Energy simulator lives at `main.py`; MQTT examples under `data_transmission_example.py`.
-- Home Assistant integration is in `custom_components/jackery_home/` with `__init__.py`, `sensor.py`, `config_flow.py`, translations, and docs.
+- Home Assistant integration is in `custom_components/JackeryHome/` with `__init__.py`, `sensor.py`, `config_flow.py`, translations, and docs.
 - Branding assets sit in `brands/`; release helpers and docs (e.g., `prepare_release.sh`, `README.md`, `energy_flow_card_config.yaml`) are at the repo root.
 - Tests currently consist of targeted scripts such as `test_mqtt.py`; add new suites beside related modules.
 

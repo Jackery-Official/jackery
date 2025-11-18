@@ -90,11 +90,11 @@ jackery_home/
    ```
 
 3. **更新版本号**
-   编辑 `custom_components/jackery_home/manifest.json` 中的版本号
+   编辑 `custom_components/JackeryHome/manifest.json` 中的版本号
 
 4. **提交版本更新**
    ```bash
-   git add custom_components/jackery_home/manifest.json
+   git add custom_components/JackeryHome/manifest.json
    git commit -m "版本更新至 v1.0.0"
    ```
 
