@@ -23,19 +23,19 @@ _LOGGER = logging.getLogger(__name__)
 
 # Meter SN 映射（传感器ID到meter_sn的映射）
 METER_SN_MAP = {
-    "battery_soc": 21548033,
-    "solar_energy": 16961537,
-    "home_energy": 16936961,
-    "grid_import_energy": 16959489,
-    "grid_export_energy": 16960513,
-    "battery_charge_energy": 16952321,
-    "battery_discharge_energy": 16953345,
-    "solar_power": 1026001,
-    "home_power": 21171201,
-    "grid_import_power": 16930817,
-    "grid_export_power": 16930817,
-    "battery_charge_power": 16931841,
-    "battery_discharge_power": 16931841,
+    "battery_soc": "21548033",
+    "solar_energy": "16961537",
+    "home_energy": "16936961",
+    "grid_import_energy": "16959489",
+    "grid_export_energy": "16960513",
+    "battery_charge_energy": "16952321",
+    "battery_discharge_energy": "16953345",
+    "solar_power": "1026001",
+    "home_power": "21171201",
+    "grid_import_power": "16930817",
+    "grid_export_power": "16930817",
+    "battery_charge_power": "16931841",
+    "battery_discharge_power": "16931841",
 }
 
 # 传感器配置
@@ -199,9 +199,9 @@ class JackeryHomeSensor(SensorEntity):
             "sw_version": "1.0.5",
         }
         self._topic = f"{topic_prefix}/{sensor_id}/state"
-        self._data_topic = "v1/iot_gw/cloud/data/#"  # 接收设备响应数据的主题
+        self._data_topic = "v1/iot_gw/gw/data"  # 接收设备响应数据的主题
         self._data_get_topic = "v1/iot_gw/cloud/data"  # 发送数据请求的基础主题（需要加上 device_sn）
-        self._gw_lwt_topic = "v1/iot_gw/gw_lwt/#"
+        self._gw_lwt_topic = "v1/iot_gw/gw_lwt"
         self._attr_native_value = None
         self._attr_available = False
         self._data_task = None
@@ -441,7 +441,7 @@ class JackeryHomeSensor(SensorEntity):
                 request_data = self._construct_data_get_request()
                 
                 # 发送数据获取请求
-                topic = f"{self._data_get_topic}/{self._device_sn}" if self._device_sn else self._data_get_topic
+                topic = f"{self._data_get_topic}" if self._device_sn else self._data_get_topic
                 await ha_mqtt.async_publish(
                     self.hass,
                     topic,

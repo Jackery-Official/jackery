@@ -1,7 +1,7 @@
 import json
 import paho.mqtt.client as mqtt
 
-MQTT_BROKER = "192.168.0.101"
+MQTT_BROKER = "192.168.1.100"
 MQTT_PORT = 1883
 MQTT_USERNAME = ""
 MQTT_PASSWORD = ""
