@@ -206,7 +206,13 @@ class JackeryHomeSensor(SensorEntity):
         self._attr_available = False
         self._data_task = None
         self._device_sn = ""  # 设备序列号（从 LWT 消息中获取）
-        self._meter_sn = METER_SN_MAP.get(sensor_id, 0)  # 当前传感器的 meter_sn
+        # 获取 meter_sn，对于功率传感器，使用对应的 _power 键
+        if sensor_id in ["grid_import", "grid_export"]:
+            self._meter_sn = METER_SN_MAP.get("grid_import_power", 0)
+        elif sensor_id in ["battery_charge", "battery_discharge"]:
+            self._meter_sn = METER_SN_MAP.get("battery_charge_power", 0)
+        else:
+            self._meter_sn = METER_SN_MAP.get(sensor_id, 0)  # 当前传感器的 meter_sn
         
         # 能源传感器标识
         self._is_energy_sensor = device_class == SensorDeviceClass.ENERGY
@@ -332,8 +338,8 @@ class JackeryHomeSensor(SensorEntity):
         data = {
             "cmd": "data_get",
             "gw_sn": self._device_sn if self._device_sn else "",
-            "timestamp": time.time(),
-            "token": random.randint(1000, 9999),
+            "timestamp": str(int(time.time() * 1000)),
+            "token": str(random.randint(1000, 9999)),
             "info": {
                 "dev_list": [
                     {
@@ -366,31 +372,42 @@ class JackeryHomeSensor(SensorEntity):
                 for meter in meter_list:
                     # 响应格式：meter 是 [meter_sn, meter_value] 格式的列表
                     if isinstance(meter, list) and len(meter) >= 2:
-                        meter_sn = meter[0]
-                        meter_value = meter[1]
+                        meter_sn_raw = meter[0]
+                        meter_value_raw = meter[1]
                         
-                        # 检查是否匹配当前传感器的 meter_sn
-                        if meter_sn == self._meter_sn:
+                        # 处理 meter_sn：可能是字符串或整数，统一转换为整数进行比较
+                        try:
+                            meter_sn = int(meter_sn_raw) if isinstance(meter_sn_raw, str) else int(meter_sn_raw)
+                        except (ValueError, TypeError):
+                            meter_sn = meter_sn_raw
+                        
+                        # 先转换为 float，然后判断是否可以转换为 int
+                        meter_value_float = float(meter_value_raw)
+                        # 如果小数部分为 0，则转换为 int，否则保留 float
+                        meter_value = int(meter_value_float) if meter_value_float == int(meter_value_float) else meter_value_float
+                        
+                        # 检查是否匹配当前传感器的 meter_sn（支持字符串和整数比较）
+                        if int(meter_sn) == int(self._meter_sn):
                             # 处理特殊逻辑（电网功率和电池功率）
-                            if self._sensor_id == "grid_import_power":
+                            if self._sensor_id == "grid_import":
                                 # 电网功率：负值为购买，正值为出售
                                 if meter_value < 0:
                                     return abs(meter_value)
                                 else:
                                     return 0
-                            elif self._sensor_id == "grid_export_power":
+                            elif self._sensor_id == "grid_export":
                                 # 电网功率：负值为购买，正值为出售
                                 if meter_value > 0:
                                     return meter_value
                                 else:
                                     return 0
-                            elif self._sensor_id == "battery_charge_power":
+                            elif self._sensor_id == "battery_charge":
                                 # 电池功率：负值为充电，正值为放电
                                 if meter_value < 0:
                                     return abs(meter_value)
                                 else:
                                     return 0
-                            elif self._sensor_id == "battery_discharge_power":
+                            elif self._sensor_id == "battery_discharge":
                                 # 电池功率：负值为充电，正值为放电
                                 if meter_value > 0:
                                     return meter_value

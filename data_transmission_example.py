@@ -8,7 +8,21 @@ import json
 import time
 import random
 import paho.mqtt.client as mqtt
-
+battery_soc_point = "21548033"
+    ## 能量累计
+solar_energy_point = "16961537"
+home_energy_point = "16936961"
+grid_import_energy_point = "16959489"
+grid_export_energy_point = "16960513"
+battery_charge_energy_point = "16952321"
+battery_discharge_energy_point = "16953345"
+    ## 实时功率
+solar_power_point = "1026001"
+home_power_point = "21171201"
+grid_import_power_point = "16930817"
+grid_export_power_point = "16930817"
+battery_charge_power_point = "16931841"
+battery_discharge_power_point = "16931841"
 class DataTransmissionExample:
     
     
@@ -19,58 +33,50 @@ class DataTransmissionExample:
         self.running = False
         self.device_status = "offline"
         self.device_sn = ""
-        # 初始化能源累积数据（基准从1kWh开始）
+        self.battery_soc = 0
+        self.solar_energy = 0
+        self.solar_energy = 0
+        self.home_energy = 0
+        self.grid_import_energy = 0
+        self.grid_export_energy = 0
+        self.battery_charge_energy = 0
+        self.battery_discharge_energy = 0
+
         self.energy_data = {
-            "solar_energy": 1.0,
-            "home_energy": 1.0,
-            "grid_import_energy": 1.0,
-            "grid_export_energy": 1.0,
-            "battery_charge_energy": 1.0,
-            "battery_discharge_energy": 1.0,
+            "solar_energy": 0,
+            "home_energy": 0,
+            "grid_import_energy": 0,
+            "grid_export_energy": 0,
+            "battery_charge_energy": 0,
+            "battery_discharge_energy": 0,
         }
-    # 系统SOC 
-    battery_soc = 21548033
-    
-    ## 能量累计
-    solar_energy = 16961537
-    home_energy = 16936961
-    grid_import_energy = 16959489
-    grid_export_energy = 16960513
-    battery_charge_energy = 16952321
-    battery_discharge_energy = 16953345
-    ## 实时功率
-    solar_power = 1026001
-    home_power = 21171201
-    grid_import_power = 16930817
-    grid_export_power = 16930817
-    battery_charge_power = 16931841
-    battery_discharge_power = 16931841
+
     ## 构造发送数据
     def construct_send_data(self):
         data = {
         "cmd": "data_get",
         "gw_sn": self.device_sn,
-        "timestamp": time.time(),
-        ## 随机数
-        "token": random.randint(1000, 9999),
+        "timestamp": str(int(time.time() * 1000)),
+        ## 随机数是字符串
+        "token": str(random.randint(1000, 9999)),
         "info": {
             "dev_list": [
                 {
                     "dev_sn": "ems_" + self.device_sn,
                     "meter_list": [
-                       self.battery_soc,
-                       self.solar_energy,
-                       self.home_energy,
-                       self.grid_import_energy,
-                       self.grid_export_energy,
-                       self.battery_charge_energy,
-                       self.battery_discharge_energy,
-                       self.solar_power,
-                       self.home_power,
-                       self.grid_import_power,
-                       self.grid_export_power,
-                       self.battery_charge_power,
-                       self.battery_discharge_power,
+                        battery_soc_point,
+                        solar_energy_point,
+                       home_energy_point,
+                       grid_import_energy_point,
+                       grid_export_energy_point,
+                       battery_charge_energy_point,
+                       battery_discharge_energy_point,
+                       solar_power_point,
+                       home_power_point,
+                       grid_import_power_point,
+                       grid_export_power_point,
+                       battery_charge_power_point,
+                       battery_discharge_power_point,
                     ]
                 }
             ]
@@ -79,11 +85,11 @@ class DataTransmissionExample:
         return data
     ## 解析数据
     def parse_data(self, payload):
-        data = json.loads(payload)
-        cmd = data["cmd"]
-        gw_sn = data["gw_sn"]
-        token = data["token"]
-        timestamp = data["timestamp"]
+        # payload 已经是字典类型，不需要再次解析
+        if isinstance(payload, str):
+            data = json.loads(payload)
+        else:
+            data = payload
         info = data["info"]
         dev_list = info["dev_list"]
         for dev in dev_list:
@@ -91,37 +97,40 @@ class DataTransmissionExample:
             meter_list = dev["meter_list"]
             for meter in meter_list:
                 meter_sn = meter[0]
-                meter_value = meter[1]
+                # 先转换为 float，然后判断是否可以转换为 int
+                meter_value_float = float(meter[1])
+                # 如果小数部分为 0，则转换为 int，否则保留 float
+                meter_value = int(meter_value_float) if meter_value_float == int(meter_value_float) else meter_value_float
                 print(f"📨 收到设备数据: {dev_sn} {meter_sn} {meter_value}")
-                if meter_sn == self.battery_soc:
+                if meter_sn == battery_soc_point:
                     self.battery_soc = meter_value
                     print(f"📨 收到电池电量: {self.battery_soc}")
-                if meter_sn == self.solar_energy:
+                if meter_sn == solar_energy_point:
                     self.solar_energy = meter_value
                     print(f"📨 收到太阳能能量: {self.solar_energy}")
-                if meter_sn == self.home_energy:
+                if meter_sn == home_energy_point:
                     self.home_energy = meter_value
                     print(f"📨 收到家庭能量: {self.home_energy}")
-                if meter_sn == self.grid_import_energy:
+                if meter_sn == grid_import_energy_point:
                     self.grid_import_energy = meter_value
                     print(f"📨 收到电网购买能量: {self.grid_import_energy}")
-                if meter_sn == self.grid_export_energy:
+                if meter_sn == grid_export_energy_point:
                     self.grid_export_energy = meter_value
                     print(f"📨 收到电网出售能量: {self.grid_export_energy}")
-                if meter_sn == self.battery_charge_energy:
+                if meter_sn == battery_charge_energy_point:
                     self.battery_charge_energy = meter_value
                     print(f"📨 收到电池充电能量: {self.battery_charge_energy}")
-                if meter_sn == self.battery_discharge_energy:
+                if meter_sn == battery_discharge_energy_point:
                     self.battery_discharge_energy = meter_value
                     print(f"📨 收到电池放电能量: {self.battery_discharge_energy}")
-                if meter_sn == self.solar_power:
+                if meter_sn == solar_power_point:
                     self.solar_power = meter_value
                     print(f"📨 收到太阳能功率: {self.solar_power}")
-                if meter_sn == self.home_power:
+                if meter_sn == home_power_point:
                     self.home_power = meter_value
                     print(f"📨 收到家庭功率: {self.home_power}")
                 ## 电网功率 负值为购买，正值为出售
-                if meter_sn == self.grid_import_power:
+                if meter_sn == grid_import_power_point:
                     self.grid_import_power = meter_value
                     if meter_value < 0:
                         self.grid_import_power = -meter_value
@@ -130,7 +139,7 @@ class DataTransmissionExample:
                         self.grid_export_power = meter_value
                         print(f"📨 收到电网出售功率: {self.grid_export_power}")
                 ## 电池充放电功率 负值为充电，正值为放电
-                if meter_sn == self.battery_charge_power:
+                if meter_sn == battery_charge_power_point:
                     self.battery_charge_power = meter_value
                     if meter_value < 0:
                         self.battery_charge_power = -meter_value
@@ -150,21 +159,21 @@ class DataTransmissionExample:
         if rc == 0:
             print("✅ 连接到 MQTT 代理成功")
             # 订阅数据获取请求主题
-            client.subscribe("v1/iot_gw/cloud/data/#")
-            client.subscribe("v1/iot_gw/gw_lwt/")
-            print("✅ 订阅 v1/iot_gw/cloud/data/# 主题成功")
-            print("✅ 订阅 v1/iot_gw/gw_lwt/ 主题成功")
+            client.subscribe("v1/iot_gw/gw/data")
+            client.subscribe("v1/iot_gw/gw_lwt")
+            print("✅ 订阅 v1/iot_gw/gw_data 主题成功")
+            print("✅ 订阅 v1/iot_gw/gw_lwt 主题成功")
         else:
             print(f"❌ 连接 MQTT 代理失败，错误码: {rc}")
     
     def on_message(self, client, userdata, msg):
         """MQTT 消息接收回调"""
-        if msg.topic == "v1/iot_gw/cloud/data/#":
+        if msg.topic == "v1/iot_gw/gw/data":
             print(f"📨 收到数据请求: {msg.payload.decode()}")
             # 解析JSON
             data = json.loads(msg.payload)
             self.parse_data(data)
-        if msg.topic == "v1/iot_gw/gw_lwt/#":
+        if msg.topic == "v1/iot_gw/gw_lwt":
             print(f"📨 收到设备状态: {msg.payload.decode()}")
             # 解析JSON
             data = json.loads(msg.payload)
@@ -183,11 +192,11 @@ class DataTransmissionExample:
         json_data = json.dumps(data, ensure_ascii=False, indent=2)
         
         # 发布到 device/data 主题
-        result = self.client.publish("v1/iot_gw/cloud/data/"+self.device_sn, json_data)
+        result = self.client.publish("v1/iot_gw/cloud/data", json_data)
         
         if result.rc == mqtt.MQTT_ERR_SUCCESS:
             print("📤 发送设备数据:")
-            print(f"   主题: v1/iot_gw/cloud/data/{self.device_sn}")
+            print(f"   主题: v1/iot_gw/cloud/data")
             print(f"   数据: {json_data}")
             print()
         else:
@@ -211,7 +220,11 @@ class DataTransmissionExample:
             
             # 发送初始数据
             print("📤 发送初始数据...")
-            self.send_device_data()
+            if self.device_sn != "":
+                self.send_device_data()
+            else:
+                print("❌ 设备SN为空，无法发送数据")
+                # return
             
             # 运行指定时间
             start_time = time.time()
@@ -221,7 +234,11 @@ class DataTransmissionExample:
                 # 每5秒发送一次数据（模拟设备主动发送）
                 if int(time.time() - start_time) % 5 == 0:
                     print("📤 设备主动发送数据...")
-                    self.send_device_data()
+                    if self.device_sn != "":
+                        self.send_device_data()
+                    else:
+                        print("❌ 设备SN为空，无法发送数据")
+                        # return
             
         except KeyboardInterrupt:
             print("\n⏹️  用户中断模拟")
