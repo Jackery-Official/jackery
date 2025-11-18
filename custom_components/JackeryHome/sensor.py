@@ -481,6 +481,9 @@ class JackeryHomeSensor(SensorEntity):
             return abs(meter_value) if meter_value < 0 else 0
         elif self._sensor_id == "battery_discharge":
             return meter_value if meter_value > 0 else 0
+        elif self._sensor_id == "battery_soc":
+            # Battery SOC 需要乘以 0.1 转换为百分比
+            return meter_value * 0.1
         else:
             return meter_value
 
