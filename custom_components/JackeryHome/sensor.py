@@ -207,8 +207,10 @@ class JackeryHomeSensor(SensorEntity):
         self._data_task = None
         self._device_sn = ""  # 设备序列号（从 LWT 消息中获取）
         # 获取 meter_sn，对于功率传感器，使用对应的 _power 键
-        if sensor_id in ["grid_import", "grid_export"]:
+        if sensor_id == "grid_import":
             self._meter_sn = METER_SN_MAP.get("grid_import_power", 0)
+        elif sensor_id == "grid_export":
+            self._meter_sn = METER_SN_MAP.get("grid_export_power", 0)
         elif sensor_id in ["battery_charge", "battery_discharge"]:
             self._meter_sn = METER_SN_MAP.get("battery_charge_power", 0)
         else:
@@ -441,7 +443,7 @@ class JackeryHomeSensor(SensorEntity):
                 request_data = self._construct_data_get_request()
                 
                 # 发送数据获取请求
-                topic = f"{self._data_get_topic}" if self._device_sn else self._data_get_topic
+                topic = self._data_get_topic
                 await ha_mqtt.async_publish(
                     self.hass,
                     topic,
