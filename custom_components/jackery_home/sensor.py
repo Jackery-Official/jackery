@@ -251,67 +251,91 @@ class JackeryHomeSensor(SensorEntity):
                 _LOGGER.error(f"Error processing LWT message: {e}")
         
         # 订阅 device/data topic 处理消息回调
-        @callback
-        def data_message_received(msg):
-            """Handle new MQTT messages from device/data topic."""
-            try:
-                payload = msg.payload
-                if isinstance(payload, bytes):
-                    payload = payload.decode("utf-8")
-                
-                _LOGGER.debug(f"Received data message for {self._sensor_id}: {payload}")
-                
-                # 尝试解析 data_get 格式的数据
-                try:
-                    data = json.loads(payload)
-                    # 检查是否是 data_get 格式
-                    if isinstance(data, dict) and data.get("cmd") == "data_get":
-                        value = self._parse_data_get_response(data)
-                        if value is not None:
-                            self._attr_native_value = value
-                            self._attr_available = True
-                            self.async_write_ha_state()
-                            _LOGGER.debug(f"Updated {self._sensor_id} with value: {value}")
-                        else:
-                            _LOGGER.debug(f"No matching data found for {self._sensor_id} in data_get response")
-                        return
-                except json.JSONDecodeError:
-                    pass
-                
-                # 兼容旧格式：尝试解析 JSON
-                try:
-                    data = json.loads(payload)
-                    # 根据传感器ID从数据中提取对应的值
-                    if isinstance(data, dict) and self._sensor_id in data:
-                        value = data[self._sensor_id]
-                    elif isinstance(data, dict) and "value" in data:
-                        value = data["value"]
-                    else:
-                        value = data
-                except json.JSONDecodeError:
-                    # 如果不是 JSON，直接使用原始值
-                    try:
-                        value = float(payload)
-                    except ValueError:
-                        # 如果无法转换为数字，保持原值但设置不可用
-                        value = payload
-                        self._attr_available = False
-                        self.async_write_ha_state()
-                        return
-                
-                # 能源传感器直接使用接收到的累积值，不进行额外计算
-                # 设备端已经发送了正确的累积值
-                
-                # 更新传感器状态
-                self._attr_native_value = value
-                self._attr_available = True
-                self.async_write_ha_state()
-                
-                _LOGGER.debug(f"Updated {self._sensor_id} with value: {value}")
-                
-            except Exception as e:
-                _LOGGER.error(f"Error processing data message for {self._sensor_id}: {e}")
 
+@callback
+def data_message_received(msg):
+    """Handle new MQTT messages from device/data topic."""
+    try:
+        payload = msg.payload
+        if isinstance(payload, bytes):
+            payload = payload.decode("utf-8")
+
+        _LOGGER.debug(f"Received data message for {self._sensor_id}: {payload}")
+
+        data = None
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            data = None
+
+        # data_get 响应，解析方式参考 data_transmission_example.py
+        if isinstance(data, dict) and data.get("cmd") == "data_get":
+            try:
+                target_meter_sn = str(self._meter_sn)
+                info = data.get("info", {})
+                dev_list = info.get("dev_list", [])
+                for dev in dev_list:
+                    meter_list = dev.get("meter_list", [])
+                    for meter in meter_list:
+                        if not isinstance(meter, (list, tuple)) or len(meter) < 2:
+                            continue
+
+                        meter_sn = str(meter[0])
+                        try:
+                            meter_value_float = float(meter[1])
+                        except (ValueError, TypeError):
+                            continue
+
+                        meter_value = int(meter_value_float) if meter_value_float == int(meter_value_float) else meter_value_float
+
+                        if meter_sn != target_meter_sn:
+                            continue
+
+                        if self._sensor_id == "grid_import":
+                            value = abs(meter_value) if meter_value < 0 else 0
+                        elif self._sensor_id == "grid_export":
+                            value = meter_value if meter_value > 0 else 0
+                        elif self._sensor_id == "battery_charge":
+                            value = abs(meter_value) if meter_value < 0 else 0
+                        elif self._sensor_id == "battery_discharge":
+                            value = meter_value if meter_value > 0 else 0
+                        else:
+                            value = meter_value
+
+                        self._attr_native_value = value
+                        self._attr_available = True
+                        self.async_write_ha_state()
+                        _LOGGER.debug(f"Updated {self._sensor_id} with value: {value}")
+                        return
+
+                _LOGGER.debug(f"No matching data found for {self._sensor_id} in data_get payload")
+            except Exception as parse_err:
+                _LOGGER.error(f"Error parsing data_get response: {parse_err}")
+            return
+
+        # 兼容旧格式的数据
+        if isinstance(data, dict):
+            if self._sensor_id in data:
+                value = data[self._sensor_id]
+            elif "value" in data:
+                value = data["value"]
+            else:
+                value = data
+        else:
+            try:
+                value = float(payload)
+            except ValueError:
+                self._attr_available = False
+                self.async_write_ha_state()
+                return
+
+        self._attr_native_value = value
+        self._attr_available = True
+        self.async_write_ha_state()
+        _LOGGER.debug(f"Updated {self._sensor_id} with value: {value}")
+
+    except Exception as e:
+        _LOGGER.error(f"Error processing data message for {self._sensor_id}: {e}")
         # 订阅 LWT topic 以获取设备序列号
         await ha_mqtt.async_subscribe(
             self.hass,

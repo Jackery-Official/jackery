@@ -35,7 +35,7 @@ if ! git diff-index --quiet HEAD --; then
 fi
 
 # 获取当前版本
-CURRENT_VERSION=$(grep -o '"version": "[^"]*"' custom_components/JackeryHome/manifest.json | cut -d'"' -f4)
+CURRENT_VERSION=$(grep -o '"version": "[^"]*"' custom_components/jackery_home/manifest.json | cut -d'"' -f4)
 echo "📦 当前版本: $CURRENT_VERSION"
 echo ""
 
@@ -50,9 +50,9 @@ fi
 # 更新 manifest.json 中的版本号
 if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
     echo "📝 更新 manifest.json 中的版本号..."
-    sed -i.bak "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" custom_components/JackeryHome/manifest.json
-    rm custom_components/JackeryHome/manifest.json.bak
-    git add custom_components/JackeryHome/manifest.json
+    sed -i.bak "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" custom_components/jackery_home/manifest.json
+    rm custom_components/jackery_home/manifest.json.bak
+    git add custom_components/jackery_home/manifest.json
     git commit -m "版本更新至 v$NEW_VERSION"
     echo "✅ 版本号已更新"
 fi

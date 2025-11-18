@@ -18,7 +18,7 @@
 本项目包含两个主要部分：
 
 1. **MQTT 模拟器** (`main.py`) - 模拟发送能源监控数据到 MQTT broker
-2. **Home Assistant 自定义集成** (`custom_components/JackeryHome/`) - 接收 MQTT 数据并创建传感器实体
+2. **Home Assistant 自定义集成** (`custom_components/jackery_home/`) - 接收 MQTT 数据并创建传感器实体
 
 ## 传感器列表
 
@@ -57,7 +57,7 @@
 ### 方式二：手动安装
 
 1. 下载最新的 [Release](https://github.com/suyulin/jackery_home/releases)
-2. 将 `custom_components/JackeryHome` 文件夹复制到你的 Home Assistant 配置目录的 `custom_components/` 文件夹中
+2. 将 `custom_components/jackery_home` 文件夹复制到你的 Home Assistant 配置目录的 `custom_components/` 文件夹中
 3. 重启 Home Assistant
 4. 按照上述"配置集成"步骤进行配置
 
@@ -161,7 +161,7 @@ entities:
 
 ### 核心文件
 - `main.py`: MQTT 传感器模拟器主程序
-- `custom_components/JackeryHome/`: Home Assistant 自定义集成
+- `custom_components/jackery_home/`: Home Assistant 自定义集成
   - `__init__.py`: 集成入口
   - `manifest.json`: 集成元数据
   - `sensor.py`: 传感器平台实现
@@ -199,7 +199,7 @@ entities:
 ## 文档
 
 - [**HACS 发布指南**](HACS_PUBLISHING_GUIDE.md) - 如何发布到 HACS
-- [自定义集成 README](custom_components/JackeryHome/README.md) - 集成技术文档
+- [自定义集成 README](custom_components/jackery_home/README.md) - 集成技术文档
 
 ## 开发者
 
@@ -213,7 +213,7 @@ entities:
 
 或手动发布：
 
-1. 更新 `custom_components/JackeryHome/manifest.json` 中的版本号
+1. 更新 `custom_components/jackery_home/manifest.json` 中的版本号
 2. 提交更改并推送到 GitHub
 3. 创建新的 Git tag（如 `v1.0.1`）
 4. 在 GitHub 创建 Release
