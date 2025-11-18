@@ -15,9 +15,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up JackeryHome from a config entry."""
     _LOGGER.info("Setting up JackeryHome integration")
     
-    # 存储配置数据
+    # 初始化存储结构
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = entry.data
+    hass.data[DOMAIN][entry.entry_id] = {
+        "config": entry.data,
+        "coordinator": None,  # 将在 sensor.py 中设置
+    }
     
     # 加载传感器平台
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -28,6 +31,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading JackeryHome integration")
+    
+    # 停止协调器
+    entry_data = hass.data[DOMAIN].get(entry.entry_id, {})
+    coordinator = entry_data.get("coordinator")
+    if coordinator:
+        await coordinator.async_stop()
+        _LOGGER.info("Coordinator stopped")
     
     # 卸载传感器平台
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
