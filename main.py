@@ -3,9 +3,9 @@ import time
 import random
 import paho.mqtt.client as mqtt
 
-MQTT_BROKER = "192.168.0.101"
+MQTT_BROKER = "192.168.1.100"
 MQTT_PORT = 1883
-MQTT_CLIENT_ID = "hem_simulator"
+MQTT_CLIENT_ID = "jackery_home_simulator"
 
 # 模式控制变量
 # 0: 自发自用模式 (Self-consumption)

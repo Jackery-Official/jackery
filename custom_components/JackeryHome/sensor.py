@@ -2,6 +2,8 @@
 import asyncio
 import json
 import logging
+import time
+import random
 from typing import Any
 
 from homeassistant.components import mqtt as ha_mqtt
@@ -18,6 +20,23 @@ from homeassistant.const import UnitOfPower, UnitOfEnergy, PERCENTAGE
 from . import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+# Meter SN 映射（传感器ID到meter_sn的映射）
+METER_SN_MAP = {
+    "battery_soc": 21548033,
+    "solar_energy": 16961537,
+    "home_energy": 16936961,
+    "grid_import_energy": 16959489,
+    "grid_export_energy": 16960513,
+    "battery_charge_energy": 16952321,
+    "battery_discharge_energy": 16953345,
+    "solar_power": 1026001,
+    "home_power": 21171201,
+    "grid_import_power": 16930817,
+    "grid_export_power": 16930817,
+    "battery_charge_power": 16931841,
+    "battery_discharge_power": 16931841,
+}
 
 # 传感器配置
 SENSORS = {
@@ -180,11 +199,14 @@ class JackeryHomeSensor(SensorEntity):
             "sw_version": "1.0.5",
         }
         self._topic = f"{topic_prefix}/{sensor_id}/state"
-        self._data_topic = "device/data"
-        self._data_get_topic = "device/data-get"
+        self._data_topic = "v1/iot_gw/cloud/data/#"  # 接收设备响应数据的主题
+        self._data_get_topic = "v1/iot_gw/cloud/data"  # 发送数据请求的基础主题（需要加上 device_sn）
+        self._gw_lwt_topic = "v1/iot_gw/gw_lwt/#"
         self._attr_native_value = None
         self._attr_available = False
         self._data_task = None
+        self._device_sn = ""  # 设备序列号（从 LWT 消息中获取）
+        self._meter_sn = METER_SN_MAP.get(sensor_id, 0)  # 当前传感器的 meter_sn
         
         # 能源传感器标识
         self._is_energy_sensor = device_class == SensorDeviceClass.ENERGY
@@ -198,6 +220,28 @@ class JackeryHomeSensor(SensorEntity):
         """Set up the sensor."""
         _LOGGER.info(f"JackeryHome sensor {self._sensor_id} added to Home Assistant")
         
+        # 订阅 LWT 主题以获取设备序列号
+        @callback
+        def lwt_message_received(msg):
+            """Handle LWT messages to get device serial number."""
+            try:
+                payload = msg.payload
+                if isinstance(payload, bytes):
+                    payload = payload.decode("utf-8")
+                
+                _LOGGER.debug(f"Received LWT message: {payload}")
+                
+                try:
+                    data = json.loads(payload)
+                    if isinstance(data, dict) and "gw_sn" in data:
+                        self._device_sn = data["gw_sn"]
+                        _LOGGER.info(f"Device serial number updated: {self._device_sn}")
+                except json.JSONDecodeError:
+                    _LOGGER.warning(f"Failed to parse LWT message: {payload}")
+                    
+            except Exception as e:
+                _LOGGER.error(f"Error processing LWT message: {e}")
+        
         # 订阅 device/data topic 处理消息回调
         @callback
         def data_message_received(msg):
@@ -209,7 +253,24 @@ class JackeryHomeSensor(SensorEntity):
                 
                 _LOGGER.debug(f"Received data message for {self._sensor_id}: {payload}")
                 
-                # 尝试解析 JSON
+                # 尝试解析 data_get 格式的数据
+                try:
+                    data = json.loads(payload)
+                    # 检查是否是 data_get 格式
+                    if isinstance(data, dict) and data.get("cmd") == "data_get":
+                        value = self._parse_data_get_response(data)
+                        if value is not None:
+                            self._attr_native_value = value
+                            self._attr_available = True
+                            self.async_write_ha_state()
+                            _LOGGER.debug(f"Updated {self._sensor_id} with value: {value}")
+                        else:
+                            _LOGGER.debug(f"No matching data found for {self._sensor_id} in data_get response")
+                        return
+                except json.JSONDecodeError:
+                    pass
+                
+                # 兼容旧格式：尝试解析 JSON
                 try:
                     data = json.loads(payload)
                     # 根据传感器ID从数据中提取对应的值
@@ -243,6 +304,15 @@ class JackeryHomeSensor(SensorEntity):
             except Exception as e:
                 _LOGGER.error(f"Error processing data message for {self._sensor_id}: {e}")
 
+        # 订阅 LWT topic 以获取设备序列号
+        await ha_mqtt.async_subscribe(
+            self.hass,
+            self._gw_lwt_topic,
+            lwt_message_received,
+            1
+        )
+        _LOGGER.info(f"Subscribed to MQTT topic: {self._gw_lwt_topic}")
+        
         # 订阅 device/data topic
         await ha_mqtt.async_subscribe(
             self.hass, 
@@ -257,19 +327,112 @@ class JackeryHomeSensor(SensorEntity):
         self._data_task = asyncio.create_task(self._periodic_data_request())
         
 
+    def _construct_data_get_request(self) -> dict:
+        """构造 data_get 格式的请求数据."""
+        data = {
+            "cmd": "data_get",
+            "gw_sn": self._device_sn if self._device_sn else "",
+            "timestamp": time.time(),
+            "token": random.randint(1000, 9999),
+            "info": {
+                "dev_list": [
+                    {
+                        "dev_sn": "ems_" + self._device_sn if self._device_sn else "ems_",
+                        "meter_list": [
+                            self._meter_sn,
+                        ]
+                    }
+                ]
+            }
+        }
+        return data
+    
+    def _parse_data_get_response(self, data: dict) -> Any:
+        """解析 data_get 格式的响应数据.
+        
+        请求格式: meter_list 中只包含 meter_sn (整数)
+        响应格式: meter_list 中包含 [meter_sn, meter_value] (列表)
+        """
+        try:
+            cmd = data.get("cmd")
+            if cmd != "data_get":
+                return None
+            
+            info = data.get("info", {})
+            dev_list = info.get("dev_list", [])
+            
+            for dev in dev_list:
+                meter_list = dev.get("meter_list", [])
+                for meter in meter_list:
+                    # 响应格式：meter 是 [meter_sn, meter_value] 格式的列表
+                    if isinstance(meter, list) and len(meter) >= 2:
+                        meter_sn = meter[0]
+                        meter_value = meter[1]
+                        
+                        # 检查是否匹配当前传感器的 meter_sn
+                        if meter_sn == self._meter_sn:
+                            # 处理特殊逻辑（电网功率和电池功率）
+                            if self._sensor_id == "grid_import_power":
+                                # 电网功率：负值为购买，正值为出售
+                                if meter_value < 0:
+                                    return abs(meter_value)
+                                else:
+                                    return 0
+                            elif self._sensor_id == "grid_export_power":
+                                # 电网功率：负值为购买，正值为出售
+                                if meter_value > 0:
+                                    return meter_value
+                                else:
+                                    return 0
+                            elif self._sensor_id == "battery_charge_power":
+                                # 电池功率：负值为充电，正值为放电
+                                if meter_value < 0:
+                                    return abs(meter_value)
+                                else:
+                                    return 0
+                            elif self._sensor_id == "battery_discharge_power":
+                                # 电池功率：负值为充电，正值为放电
+                                if meter_value > 0:
+                                    return meter_value
+                                else:
+                                    return 0
+                            else:
+                                # 其他传感器直接返回值
+                                return meter_value
+                    # 请求格式：meter 只是 meter_sn (整数)，忽略请求
+                    elif isinstance(meter, (int, float)):
+                        # 这是请求格式，不是响应，忽略
+                        pass
+            
+            return None
+            
+        except Exception as e:
+            _LOGGER.error(f"Error parsing data_get response: {e}")
+            return None
+    
     async def _periodic_data_request(self) -> None:
         """Periodically send data request to device/data-get topic."""
         while True:
             try:
+                # 如果还没有设备序列号，等待一段时间再重试
+                if not self._device_sn:
+                    _LOGGER.debug(f"Device serial number not available yet for {self._sensor_id}, waiting...")
+                    await asyncio.sleep(5)
+                    continue
+                
+                # 构造 data_get 格式的请求
+                request_data = self._construct_data_get_request()
+                
                 # 发送数据获取请求
+                topic = f"{self._data_get_topic}/{self._device_sn}" if self._device_sn else self._data_get_topic
                 await ha_mqtt.async_publish(
                     self.hass,
-                    self._data_get_topic,
-                    json.dumps({"request": "data", "sensor": self._sensor_id}),
+                    topic,
+                    json.dumps(request_data, ensure_ascii=False),
                     1,
                     False
                 )
-                _LOGGER.debug(f"Sent data request for {self._sensor_id} to {self._data_get_topic}")
+                _LOGGER.debug(f"Sent data_get request for {self._sensor_id} (meter_sn: {self._meter_sn}) to {topic}")
                 
                 # 等待5秒
                 await asyncio.sleep(5)
@@ -297,4 +460,6 @@ class JackeryHomeSensor(SensorEntity):
             "mqtt_topic": self._topic,
             "data_topic": self._data_topic,
             "data_get_topic": self._data_get_topic,
+            "meter_sn": self._meter_sn,
+            "device_sn": self._device_sn,
         }

@@ -21,7 +21,7 @@ DATA_SCHEMA = vol.Schema(
         ): str,
         vol.Required(
             "mqtt_broker",
-            default="192.168.0.101"
+            default="192.168.1.100"
         ): str,
         vol.Optional(
             "mqtt_port",
