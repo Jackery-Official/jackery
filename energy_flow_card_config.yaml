@@ -1,24 +1,24 @@
 type: custom:energy-flow-card-plus
 entities:
   solar:
-    entity: sensor.solar_power
+    entity: sensor.jackeryhome_solar_power
     name: 太阳能
     icon: mdi:solar-power
   grid:
     entity:
-      consumption: sensor.grid_import
-      production: sensor.grid_export
+      consumption: sensor.jackeryhome_grid_import
+      production: sensor.jackeryhome_grid_export
     name: 电网
     icon: mdi:transmission-tower
   battery:
     entity:
-      consumption: sensor.battery_charge
-      production: sensor.battery_discharge
-    state_of_charge: sensor.battery_soc
+      consumption: sensor.jackeryhome_battery_charge
+      production: sensor.jackeryhome_battery_discharge
+    state_of_charge: sensor.jackeryhome_battery_state_of_charge
     name: 电池
     icon: mdi:battery
   home:
-    entity: sensor.home_power
+    entity: sensor.jackeryhome_home_power
     name: 家庭用电
     icon: mdi:home-lightning-bolt
 display_zero_lines:
