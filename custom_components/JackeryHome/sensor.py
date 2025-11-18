@@ -315,6 +315,8 @@ class JackeryHomeSensor(SensorEntity):
 
     async def async_added_to_hass(self) -> None:
         """Set up the sensor."""
+        await super().async_added_to_hass()
+        
         _LOGGER.info(f"JackeryHome sensor {self._sensor_id} added to Home Assistant")
         
         # 创建 LWT 消息处理回调
@@ -454,6 +456,8 @@ class JackeryHomeSensor(SensorEntity):
             except asyncio.CancelledError:
                 pass
         _LOGGER.info(f"JackeryHome sensor {self._sensor_id} removed from Home Assistant")
+        
+        await super().async_will_remove_from_hass()
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
