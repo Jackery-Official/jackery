@@ -450,7 +450,7 @@ class JackeryHomeSensor(SensorEntity):
         self._attr_native_value = None
         self._attr_available = False
         self._attr_should_poll = False
-        self._attr_has_entity_name = True
+        self._attr_has_entity_name =False 
         self._coordinator = coordinator  # 协调器引用
         
         # 获取 meter_sn，对于功率传感器，使用对应的 _power 键
