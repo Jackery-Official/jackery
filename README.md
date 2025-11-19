@@ -20,17 +20,36 @@
 1. **MQTT 模拟器** (`main.py`) - 模拟发送能源监控数据到 MQTT broker
 2. **Home Assistant 自定义集成** (`custom_components/JackeryHome/`) - 接收 MQTT 数据并创建传感器实体
 
+### 集成架构
+
+集成采用**协调器模式**（Coordinator Pattern）：
+- 所有传感器共享一个 `JackeryDataCoordinator` 实例
+- 统一管理 MQTT 订阅和数据请求
+- 每 5 秒发送一次包含所有传感器 `meter_sn` 的数据请求
+- 自动解析响应并分发给对应的传感器实体
+
 ## 传感器列表
 
 本项目会创建以下传感器：
 
-- `sensor.solar_power`: 太阳能发电功率（W）
-- `sensor.home_power`: 家庭用电功率（W）
-- `sensor.grid_import`: 从电网购买功率（W）
-- `sensor.grid_export`: 向电网出售功率（W）
-- `sensor.battery_charge`: 电池充电功率（W）
-- `sensor.battery_discharge`: 电池放电功率（W）
-- `sensor.battery_soc`: 电池电量百分比（%）
+### 功率传感器（实时监测）
+
+- `sensor.jackeryhome_solar_power`: 太阳能发电功率（W）
+- `sensor.jackeryhome_home_power`: 家庭用电功率（W）
+- `sensor.jackeryhome_grid_import`: 从电网购买功率（W）
+- `sensor.jackeryhome_grid_export`: 向电网出售功率（W）
+- `sensor.jackeryhome_battery_charge`: 电池充电功率（W）
+- `sensor.jackeryhome_battery_discharge`: 电池放电功率（W）
+- `sensor.jackeryhome_battery_state_of_charge`: 电池电量百分比（%）
+
+### 能源传感器（用于能源仪表板）
+
+- `sensor.jackeryhome_solar_energy`: 太阳能发电总量（kWh）
+- `sensor.jackeryhome_home_energy`: 家庭用电总量（kWh）
+- `sensor.jackeryhome_grid_import_energy`: 电网购买总量（kWh）
+- `sensor.jackeryhome_grid_export_energy`: 电网出售总量（kWh）
+- `sensor.jackeryhome_battery_charge_energy`: 电池充电总量（kWh）
+- `sensor.jackeryhome_battery_discharge_energy`: 电池放电总量（kWh）
 
 ## 安装
 
@@ -102,7 +121,8 @@
 
 3. **查看传感器数据**
    - 进入 **开发者工具** → **状态**
-   - 搜索 "solar_power"、"home_power" 等传感器
+   - 搜索 "jackeryhome" 或传感器名称（如 "Solar Power"、"Home Power" 等）
+   - 实体 ID 格式：`sensor.jackeryhome_{sensor_id}`
 
 ## Energy Flow Card Plus 配置
 
@@ -137,23 +157,41 @@
 type: custom:energy-flow-card-plus
 entities:
   solar:
-    entity: sensor.solar_power
+    entity: sensor.jackeryhome_solar_power
     name: 太阳能
+    icon: mdi:solar-power
   grid:
     entity:
-      consumption: sensor.grid_import   # 从电网购买
-      production: sensor.grid_export    # 向电网出售
+      consumption: sensor.jackeryhome_grid_import   # 从电网购买
+      production: sensor.jackeryhome_grid_export    # 向电网出售
     name: 电网
+    icon: mdi:transmission-tower
   battery:
     entity:
-      consumption: sensor.battery_charge     # 充电
-      production: sensor.battery_discharge   # 放电
-    state_of_charge: sensor.battery_soc
+      consumption: sensor.jackeryhome_battery_charge     # 充电
+      production: sensor.jackeryhome_battery_discharge   # 放电
+    state_of_charge: sensor.jackeryhome_battery_state_of_charge
     name: 电池
+    icon: mdi:battery
   home:
-    entity: sensor.home_power
+    entity: sensor.jackeryhome_home_power
     name: 家庭用电
+    icon: mdi:home-lightning-bolt
+display_zero_lines:
+  mode: show
+  transparency: 50
+  grey_color:
+    - 189
+    - 189
+    - 189
+w_decimals: 0
+kw_decimals: 2
+color_icons: true
+animation_speed: 10
+energy_date_selection: false
 ```
+
+**注意**：实体 ID 格式为 `sensor.jackeryhome_{sensor_id}`，其中 `{sensor_id}` 对应传感器 ID（如 `solar_power`、`grid_import` 等）。
 
 更多配置选项请查看 `energy_flow_card_config.yaml` 文件。
 
@@ -164,11 +202,11 @@ entities:
 - `custom_components/JackeryHome/`: Home Assistant 自定义集成
   - `__init__.py`: 集成入口
   - `manifest.json`: 集成元数据
-  - `sensor.py`: 传感器平台实现
+  - `sensor.py`: 传感器平台实现（包含协调器模式和所有传感器逻辑）
   - `config_flow.py`: UI 配置流程
   - `strings.json`: 本地化字符串
   - `translations/zh-Hans.json`: 中文翻译
-  - `README.md`: 集成技术文档
+  - `README.md`: 集成技术文档（包含架构设计、MQTT 协议格式等）
 
 ### 文档和工具
 - `INTEGRATION_GUIDE.md`: 详细的集成使用指南
@@ -193,8 +231,9 @@ entities:
 
 - 确保 Home Assistant 已配置好 MQTT 集成
 - MQTT Broker 需要在运行此脚本之前启动
-- 传感器会每 5 秒更新一次数据
+- 集成会每 5 秒主动请求一次数据（所有传感器共享同一个请求）
 - 数据为模拟值，用于演示目的
+- 集成会自动从 LWT 消息获取设备序列号，无需手动配置
 
 ## 文档
 
