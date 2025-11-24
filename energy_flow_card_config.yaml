@@ -1,35 +1,36 @@
-type: custom:energy-flow-card-plus
+type: custom:power-flow-card-plus
 entities:
-  solar:
-    entity: sensor.jackeryhome_solar_power
-    name: 太阳能
-    icon: mdi:solar-power
-  grid:
-    entity:
-      consumption: sensor.jackeryhome_grid_import
-      production: sensor.jackeryhome_grid_export
-    name: 电网
-    icon: mdi:transmission-tower
-  battery:
-    entity:
-      consumption: sensor.jackeryhome_battery_charge
-      production: sensor.jackeryhome_battery_discharge
-    state_of_charge: sensor.jackeryhome_battery_state_of_charge
-    name: 电池
-    icon: mdi:battery
   home:
-    entity: sensor.jackeryhome_home_power
-    name: 家庭用电
-    icon: mdi:home-lightning-bolt
-display_zero_lines:
-  mode: show
-  transparency: 50
-  grey_color:
-    - 189
-    - 189
-    - 189
+    entity: sensor.home_power
+    color_icon: solar
+  fossil_fuel_percentage:
+    entity: sensor.battery_soc
+    icon: mdi:pine-tree
+    color_icon: true
+  solar:
+    icon: mdi:solar-panel-large
+    entity: sensor.solar_power
+  battery:
+    name: Bateria
+    icon: mdi:bat
+    entity:
+      consumption: sensor.battery_charge_power
+      production: sensor.battery_discharge_power
+  individual:
+    - entity: sensor.grid_import_power
+      icon: mdi:transmission-tower-import
+      color: "#80b8ff"
+      name: Grid Import
+      color_icon: false
+    - entity: sensor.grid_export_power
+      icon: mdi:transmission-tower-export
+      color: "#ff8080"
+      name: Grid Export
+      color_icon: true
 w_decimals: 0
 kw_decimals: 2
-color_icons: true
-animation_speed: 10
-energy_date_selection: false
+min_flow_rate: 0.9
+max_flow_rate: 6
+watt_threshold: 10000
+clickable_entities: true
+title: Power Flow Card Plus

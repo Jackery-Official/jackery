@@ -28,13 +28,14 @@ REQUEST_INTERVAL = 5  # 数据请求间隔（秒）
 METER_SN_MAP = {
     "battery_soc": "21548033",
     "solar_energy": "16961537",
-    "home_energy": "16936961",
+    "home_energy": "",
     "grid_import_energy": "16969729",
     "grid_export_energy": "16970753",
     "battery_charge_energy": "16964609",
     "battery_discharge_energy": "16965633",
     "solar_power": "1026001",
-    "home_power": "21171201",
+    "home_power": "16936961",
+    # 电网与电池功率传感器，使用 *_power 作为 key
     "grid_import_power": "16930817",
     "grid_export_power": "16930817",
     "battery_charge_power": "16931841",
@@ -58,28 +59,28 @@ SENSORS = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    "grid_import": {
+    "grid_import_power": {
         "name": "Grid Import",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:transmission-tower-import",
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    "grid_export": {
+    "grid_export_power": {
         "name": "Grid Export",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:transmission-tower-export",
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    "battery_charge": {
+    "battery_charge_power": {
         "name": "Battery Charge",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:battery-charging",
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    "battery_discharge": {
+    "battery_discharge_power": {
         "name": "Battery Discharge",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:battery-minus",
@@ -297,7 +298,7 @@ class JackeryDataCoordinator:
         # 遍历所有传感器，找到匹配的 meter_sn
         for sensor_id, entity in self._sensors.items():
             if str(entity._meter_sn) == meter_sn:
-                # 处理特殊传感器的值（如正负分离）
+              
                 processed_value = entity._process_meter_value(meter_value)
                 entity._update_sensor_value(processed_value)
 
@@ -450,21 +451,11 @@ class JackeryHomeSensor(SensorEntity):
         self._attr_native_value = None
         self._attr_available = False
         self._attr_should_poll = False
-        self._attr_has_entity_name =False 
+        self._attr_has_entity_name = False
         self._coordinator = coordinator  # 协调器引用
-        
-        # 获取 meter_sn，对于功率传感器，使用对应的 _power 键
-        meter_sn_key_map = {
-            "grid_import": "grid_import_power",
-            "grid_export": "grid_export_power",
-            "battery_charge": "battery_charge_power",
-            "battery_discharge": "battery_discharge_power",
-        }
-        meter_sn_key = meter_sn_key_map.get(sensor_id, sensor_id)
-        self._meter_sn = METER_SN_MAP.get(meter_sn_key, 0)
-        
-        # 能源传感器标识
-        self._is_energy_sensor = device_class == SensorDeviceClass.ENERGY
+
+        # 获取 meter_sn，直接根据传感器 ID（包括 *_power 后缀）映射
+        self._meter_sn = METER_SN_MAP.get(sensor_id, 0)
 
     @property
     def should_poll(self) -> bool:
@@ -472,20 +463,22 @@ class JackeryHomeSensor(SensorEntity):
         return False
 
     def _process_meter_value(self, meter_value: float) -> float:
-        """根据传感器类型处理 meter 值."""
-        if self._sensor_id == "grid_import":
-            return abs(meter_value) if meter_value < 0 else 0
-        elif self._sensor_id == "grid_export":
-            return meter_value if meter_value > 0 else 0
-        elif self._sensor_id == "battery_charge":
-            return abs(meter_value) if meter_value < 0 else 0
-        elif self._sensor_id == "battery_discharge":
-            return meter_value if meter_value > 0 else 0
-        elif self._sensor_id == "battery_soc":
+        
+          ## 电池充放电功率 负值为充电，正值为放电
+          ## 电网功率 负值为购买，正值为出售
+        # if self._sensor_id == "grid_import_power":
+        #     meter_value
+        # elif self._sensor_id == "grid_export_power":
+        #     return meter_value if meter_value > 0 else 0
+        # # 电池功率：同一个 meter_sn，同步更新 battery_charge_power / battery_discharge_power
+        # elif self._sensor_id == "battery_charge_power":
+        #     return abs(meter_value) if meter_value < 0 else 0
+        # elif self._sensor_id == "battery_discharge_power":
+        #     return meter_value if meter_value > 0 else 0
+        if self._sensor_id == "battery_soc":
             # Battery SOC 需要乘以 0.1 转换为百分比
-            return meter_value * 0.1
-        else:
-            return meter_value
+            meter_value = meter_value * 0.1
+        return meter_value
 
     def _update_sensor_value(self, value: Any) -> None:
         """更新传感器值并通知 Home Assistant（由协调器调用）."""
