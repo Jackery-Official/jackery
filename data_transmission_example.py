@@ -11,11 +11,11 @@ import paho.mqtt.client as mqtt
 battery_soc_point = "21548033"
     ## 能量累计
 solar_energy_point = "16961537"
-home_energy_point = "16936961"
-grid_import_energy_point = "16959489"
-grid_export_energy_point = "16960513"
-battery_charge_energy_point = "16952321"
-battery_discharge_energy_point = "16953345"
+home_energy_point = "16980993"
+grid_import_energy_point = "16969729"
+grid_export_energy_point = "16970753"
+battery_charge_energy_point = "16964609"
+battery_discharge_energy_point = "16965633"
     ## 实时功率
 solar_power_point = "1026001"
 home_power_point = "21171201"

@@ -29,10 +29,10 @@ METER_SN_MAP = {
     "battery_soc": "21548033",
     "solar_energy": "16961537",
     "home_energy": "16936961",
-    "grid_import_energy": "16959489",
-    "grid_export_energy": "16960513",
-    "battery_charge_energy": "16952321",
-    "battery_discharge_energy": "16953345",
+    "grid_import_energy": "16969729",
+    "grid_export_energy": "16970753",
+    "battery_charge_energy": "16964609",
+    "battery_discharge_energy": "16965633",
     "solar_power": "1026001",
     "home_power": "21171201",
     "grid_import_power": "16930817",
@@ -149,7 +149,7 @@ class JackeryDataCoordinator:
         self._data_topic = "v1/iot_gw/gw/data"  # 接收设备响应数据的主题
         self._data_get_topic = "v1/iot_gw/cloud/data"  # 发送数据请求的主题
         self._gw_lwt_topic = "v1/iot_gw/gw_lwt"  # LWT 主题
-        self._device_sn = "26392658575364"  # 默认设备序列号
+        self._device_sn = ""  # 默认设备序列号
         self._sensors = {}  # 存储所有传感器实体的引用 {sensor_id: entity}
         self._data_task = None  # 定时数据请求任务
         self._subscribed = False  # 标记是否已订阅
