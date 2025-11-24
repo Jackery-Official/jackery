@@ -28,14 +28,13 @@ REQUEST_INTERVAL = 5  # 数据请求间隔（秒）
 METER_SN_MAP = {
     "battery_soc": "21548033",
     "solar_energy": "16961537",
-    "home_energy": "",
+    "home_energy": "16962561",
     "grid_import_energy": "16969729",
     "grid_export_energy": "16970753",
     "battery_charge_energy": "16964609",
     "battery_discharge_energy": "16965633",
-    "solar_power": "1026001",
+    "solar_power": "16932865",
     "home_power": "16936961",
-    # 电网与电池功率传感器，使用 *_power 作为 key
     "grid_import_power": "16930817",
     "grid_export_power": "16930817",
     "battery_charge_power": "16931841",
