@@ -3,18 +3,21 @@ entities:
   grid:
     entity:
       consumption: sensor.grid_import
-      production: sensor.grid_import
-    display_state: one_way
+      production: sensor.grid_export
+    display_state: two_way
     color_circle: true
   solar:
     entity: sensor.solar_power
   battery:
     entity:
-      consumption: sensor.battery_charge
-      production: sensor.battery_discharge
+      consumption: sensor.battery_discharge
+      production: sensor.battery_charge
     state_of_charge: sensor.battery_state_of_charge
-    display_state: one_way
+    display_state: two_way
     color_circle: true
+   
   home:
     color_icon: true
+  
+
 watt_threshold: 10000

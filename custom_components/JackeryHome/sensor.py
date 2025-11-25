@@ -471,9 +471,9 @@ class JackeryHomeSensor(SensorEntity):
             return meter_value if meter_value > 0 else 0
         # # 电池功率：同一个 meter_sn，同步更新 battery_charge_power / battery_discharge_power
         elif self._sensor_id == "battery_charge_power":
-            return abs(meter_value) if meter_value < 0 else 0
+            return (meter_value) if meter_value > 0 else 0
         elif self._sensor_id == "battery_discharge_power":
-            return meter_value if meter_value > 0 else 0
+            return abs(meter_value) if meter_value < 0 else 0
         if self._sensor_id == "battery_soc":
             # Battery SOC 需要乘以 0.1 转换为百分比
             meter_value = meter_value * 0.1
