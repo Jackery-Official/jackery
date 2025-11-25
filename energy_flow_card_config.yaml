@@ -10,14 +10,11 @@ entities:
     entity: sensor.solar_power
   battery:
     entity:
-      consumption: sensor.battery_discharge
-      production: sensor.battery_charge
+      consumption: sensor.battery_charge
+      production: sensor.battery_discharge
     state_of_charge: sensor.battery_state_of_charge
     display_state: two_way
     color_circle: true
-   
   home:
     color_icon: true
-  
-
 watt_threshold: 10000
