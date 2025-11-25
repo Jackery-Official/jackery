@@ -28,7 +28,9 @@ REQUEST_INTERVAL = 5  # 数据请求间隔（秒）
 METER_SN_MAP = {
     "battery_soc": "21548033",
     "solar_energy": "16961537",
-    "home_energy": "16962561",
+    "eps_export_energy": "16998401",
+    "eps_import_energy": "16963585",
+    "eps_power": "16933889",
     "grid_import_energy": "16962561",
     "grid_export_energy": "16968705",
     "battery_charge_energy": "16964609",
@@ -43,6 +45,27 @@ METER_SN_MAP = {
 
 # 传感器配置
 SENSORS = {
+    "eps_power": {
+        "name": "EPS Power",
+        "unit": UnitOfPower.WATT,
+        "icon": "mdi:home-lightning-bolt",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "eps_export_energy": {
+        "name": "EPS Export Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:home-lightning-bolt",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+    },
+    "eps_import_energy": {
+        "name": "EPS Import Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:home-lightning-bolt",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+    },
     # 功率传感器（实时监测）
     "solar_power": {
         "name": "Solar Power",
