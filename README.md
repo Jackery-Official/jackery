@@ -119,7 +119,8 @@ animation_speed: 10
 energy_date_selection: false
 ```
 ![demo](img/demo.png)
-
+### Energy
+![energy](img/ha_energy.png)
 ### Notes & Requirements
 
 - The MQTT broker must be running before you start the simulator or expect data in Home Assistant.
