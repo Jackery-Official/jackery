@@ -4,6 +4,8 @@
 [![GitHub Release](https://img.shields.io/github/release/suyulin/jackery_home.svg)](https://github.com/suyulin/jackery_home/releases)
 [![License](https://img.shields.io/github/license/suyulin/jackery_home.svg)](LICENSE)
 
+> **⚠️ Beta Stage**: This integration is currently in Beta testing phase and may be unstable. Please use with caution and report any issues.
+
 JackeryHome is a **custom Home Assistant integration** that uses **MQTT** to monitor solar, grid, battery, EPS and home energy data from a Jackery energy system.
 
 The integration is implemented in `custom_components/JackeryHome/sensor.py` and is built around a shared **coordinator** (`JackeryDataCoordinator`) that efficiently manages subscriptions and data requests for all sensors.
@@ -34,6 +36,7 @@ Before the JackeryHome integration can receive any data, **two things must be in
 2. **Device is configured from the JackeryHome app**
    
    - Use the vendor/JackeryHome mobile app to add the device/gateway and complete its initial setup.
+   - **⚠️ APP Version Requirement**: JackeryHome APP version must be greater than **2.10.18** to support this integration.
    - Make sure the device has network access and is configured so that it can connect to your MQTT/cloud backend.
    - In the Jackery Home app, long-press the app logo to open the configuration screen.
    - In the Jackery Home app configuration, **replace the IP with the address of your own MQTT server**.
