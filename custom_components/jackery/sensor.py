@@ -78,7 +78,39 @@ SENSORS = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    
+    "solar_power_pv1": {
+        "json_key": "pv1",
+        "name": "Solar Power PV1",
+        "unit": UnitOfPower.WATT,
+        "icon": "mdi:solar-panel",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "solar_power_pv2": {
+        "json_key": "pv2",
+        "name": "Solar Power PV2",
+        "unit": UnitOfPower.WATT,
+        "icon": "mdi:solar-panel",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "solar_power_pv3": {
+        "json_key": "pv3",
+        "name": "Solar Power PV3",
+        "unit": UnitOfPower.WATT,
+        "icon": "mdi:solar-panel",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "solar_power_pv4": {
+        "json_key": "pv4",
+        "name": "Solar Power PV4",
+        "unit": UnitOfPower.WATT,
+        "icon": "mdi:solar-panel",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+
     # 电网相关
     "grid_import_power": { # Grid -> System (outOngridPw)
         "json_key": "outOngridPw",
@@ -96,11 +128,27 @@ SENSORS = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
+    "max_output_power": {
+        "json_key": "maxOutPw",
+        "name": "Max Output Power (OnGrid)",
+        "unit": UnitOfPower.WATT,
+        "icon": "mdi:speedometer",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
     
     # EPS (离网输出)
-    "eps_power": { 
+    "eps_output_power": { 
         "json_key": "swEpsOutPw", 
         "name": "EPS Output Power",
+        "unit": UnitOfPower.WATT,
+        "icon": "mdi:power-plug",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "eps_input_power": { 
+        "json_key": "swEpsInPw", 
+        "name": "EPS Input Power",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:power-plug",
         "device_class": SensorDeviceClass.POWER,
@@ -112,10 +160,18 @@ SENSORS = {
          "unit": None,
          "icon": "mdi:power-settings",
          "device_class": None,
-         "state_class": None,
+         "state_class": None, # 1-Normal, 0-Abnormal
+    },
+    "eps_switch": {
+         "json_key": "swEps",
+         "name": "EPS Switch Status",
+         "unit": None,
+         "icon": "mdi:toggle-switch",
+         "device_class": None,
+         "state_class": None, # 1-On, 0-Off
     },
     
-    # Limits & Settings
+    # Limits & Settings & Status
     "soc_charge_limit": {
         "json_key": "socChgLimit",
         "name": "SOC Charge Limit",
@@ -131,6 +187,22 @@ SENSORS = {
         "icon": "mdi:battery-arrow-down",
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "is_auto_standby": {
+        "json_key": "isAutoStandby",
+        "name": "Auto Standby Allowed",
+        "unit": None,
+        "icon": "mdi:power-sleep",
+        "device_class": None,
+        "state_class": None, # 1-Allowed, 0-Not Allowed
+    },
+    "auto_standby_status": {
+        "json_key": "autoStandby",
+        "name": "Auto Standby Status",
+        "unit": None,
+        "icon": "mdi:power-sleep",
+        "device_class": None,
+        "state_class": None, # 0-Invalid, 1-Sleep/Off, 2-On
     }
 }
 
@@ -142,10 +214,6 @@ class JackeryDataCoordinator:
         """初始化协调器."""
         self.hass = hass
         self._topic_prefix = topic_prefix
-        # The new protocol generally uses 'hb' as root, but we respect the configured prefix if given.
-        # If the user configured 'homeassistant/sensor' (default), we might want to ignore it 
-        # and use 'hb' if the new protocol is strict. 
-        # For now, let's assume 'hb' is the fixed root for this new protocol version.
         self._topic_root = "hb" 
         
         self._device_sn = ""  # 设备序列号
@@ -362,6 +430,17 @@ class JackerySensor(SensorEntity):
                 pass
         elif self._sensor_id == "battery_soc":
              self._attr_native_value = value
+        elif self._sensor_id.startswith("solar_power_pv") and isinstance(value, dict):
+            # Handle dictionary for PV if it occurs, trying to find common value keys
+            # Assumption based on "PV1发电总功率" -> it might contain power
+            if "w" in value:
+                self._attr_native_value = value["w"]
+            elif "power" in value:
+                self._attr_native_value = value["power"]
+            else:
+                # Fallback: display raw dict as string or extract first numeric value?
+                # Using str(value) for safety if structure is unknown
+                self._attr_native_value = str(value)
         else:
              self._attr_native_value = value
              
