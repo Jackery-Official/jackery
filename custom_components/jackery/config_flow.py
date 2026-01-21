@@ -18,14 +18,14 @@ DATA_SCHEMA = vol.Schema(
     {
         vol.Optional(
             "topic_prefix",
-            default="homeassistant/sensor"
+            default="hb"
         ): str,
     }
 )
 
 
-class JackeryHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for JackeryHome."""
+class JackeryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Jackery."""
 
     VERSION = 1
 
@@ -44,12 +44,12 @@ class JackeryHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "mqtt_not_configured"
             else:
                 _LOGGER.info(
-                    f"Creating JackeryHome config entry with topic_prefix: "
-                    f"{user_input.get('topic_prefix', 'homeassistant/sensor')}"
+                    f"Creating Jackery config entry with topic_prefix: "
+                    f"{user_input.get('topic_prefix', 'hb')}"
                 )
                 
                 return self.async_create_entry(
-                    title="JackeryHome",
+                    title="Jackery",
                     data=user_input,
                 )
 
@@ -58,7 +58,7 @@ class JackeryHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=DATA_SCHEMA,
             errors=errors,
             description_placeholders={
-                "topic_prefix": "MQTT topic prefix (e.g., homeassistant/sensor)",
+                "topic_prefix": "Protocol root topic (default: hb)",
             },
         )
 

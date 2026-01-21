@@ -8,13 +8,13 @@ from homeassistant.components import mqtt
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = "jackery_home"
+DOMAIN = "jackery"
 PLATFORMS = [Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up JackeryHome from a config entry."""
-    _LOGGER.info("Setting up JackeryHome integration")
+    """Set up Jackery from a config entry."""
+    _LOGGER.info("Setting up Jackery integration")
     
     # 检查 MQTT 集成是否已配置和可用
     if not await mqtt.async_wait_for_mqtt_client(hass):
@@ -42,7 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    _LOGGER.info("Unloading JackeryHome integration")
+    _LOGGER.info("Unloading Jackery integration")
     
     # 停止协调器
     entry_data = hass.data[DOMAIN].get(entry.entry_id, {})

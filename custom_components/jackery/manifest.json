@@ -1,0 +1,15 @@
+{
+    "domain": "jackery",
+    "name": "Jackery",
+    "codeowners": [
+        "@suyulin"
+    ],
+    "config_flow": true,
+    "dependencies": [
+        "mqtt"
+    ],
+    "documentation": "https://github.com/suyulin/jackery",
+    "issue_tracker": "https://github.com/suyulin/jackery/issues",
+    "iot_class": "local_push",
+    "version": "1.1.35"
+}

@@ -2,26 +2,26 @@ type: custom:power-flow-card-plus
 entities:
   grid:
     entity:
-      consumption: sensor.grid_import
-      production: sensor.grid_export
+      consumption: sensor.jackery_grid_import_power
+      production: sensor.jackery_grid_export_power
     display_state: two_way
     color_circle: true
   solar:
-    entity: sensor.solar_power
+    entity: sensor.jackery_solar_power
   battery:
     entity:
-      consumption: sensor.battery_discharge
-      production: sensor.battery_charge
-    state_of_charge: sensor.battery_state_of_charge
+      consumption: sensor.jackery_battery_charge_power
+      production: sensor.jackery_battery_discharge_power
+    state_of_charge: sensor.jackery_battery_soc
     display_state: two_way
     color_circle: true
   home:
     color_icon: true
   individual:
-    - entity: sensor.eps_power
+    - entity: sensor.jackery_eps_output_power
       secondary_info: {}
-      icon: mdi:account
-      name: eps
+      icon: mdi:power-plug
+      name: EPS
       color_value: true
       display_zero: true
       color_icon: true

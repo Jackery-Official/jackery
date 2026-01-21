@@ -2,8 +2,8 @@
     "config": {
         "step": {
             "user": {
-                "title": "配置 JackeryHome",
-                "description": "设置您的 JackeryHome 能源监控集成。注意：必须先配置 MQTT 集成。",
+                "title": "配置 Jackery",
+                "description": "设置您的 Jackery 能源监控集成。注意：必须先配置 MQTT 集成。",
                 "data": {
                     "topic_prefix": "MQTT 主题前缀"
                 }

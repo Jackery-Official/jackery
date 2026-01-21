@@ -1,14 +1,14 @@
-## JackeryHome – Home Assistant Energy Monitoring Integration
+## Jackery – Home Assistant Energy Monitoring Integration
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/suyulin/jackery_home.svg)](https://github.com/suyulin/jackery_home/releases)
-[![License](https://img.shields.io/github/license/suyulin/jackery_home.svg)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/release/suyulin/jackery.svg)](https://github.com/suyulin/jackery/releases)
+[![License](https://img.shields.io/github/license/suyulin/jackery.svg)](LICENSE)
 
 > **⚠️ Beta Stage**: This integration is currently in Beta testing phase and may be unstable. Please use with caution and report any issues.
 
-JackeryHome is a **custom Home Assistant integration** that uses **MQTT** to monitor solar, grid, battery, EPS and home energy data from a Jackery energy system.
+Jackery is a **custom Home Assistant integration** that uses **MQTT** to monitor solar, grid, battery, EPS and home energy data from a Jackery energy system.
 
-The integration is implemented in `custom_components/JackeryHome/sensor.py` and is built around a shared **coordinator** (`JackeryDataCoordinator`) that efficiently manages subscriptions and data requests for all sensors.
+The integration is implemented in `custom_components/Jackery/sensor.py` and is built around a shared **coordinator** (`JackeryDataCoordinator`) that efficiently manages subscriptions and data requests for all sensors.
 
 
 ### Features
@@ -23,7 +23,7 @@ The integration is implemented in `custom_components/JackeryHome/sensor.py` and 
 
 ### Prerequisites
 
-Before the JackeryHome integration can receive any data, **two things must be in place**:
+Before the Jackery integration can receive any data, **two things must be in place**:
 
 1. **MQTT broker/server is configured and reachable**
    
@@ -33,14 +33,14 @@ Before the JackeryHome integration can receive any data, **two things must be in
    - In your MQTT configuration, **replace the IP with the address of your own MQTT server**.
    ![mqtt_config](./img/mqtt_config.png)
    ![mqtt_config](./img/mqtt_config_2.png)
-2. **Device is configured from the JackeryHome app**
+2. **Device is configured from the Jackery app**
    
-   - Use the vendor/JackeryHome mobile app to add the device/gateway and complete its initial setup.
-   - **⚠️ APP Version Requirement**: JackeryHome APP version must be greater than **2.10.18** to support this integration.
+   - Use the vendor/Jackery mobile app to add the device/gateway and complete its initial setup.
+   - **⚠️ APP Version Requirement**: Jackery APP version must be greater than **2.10.18** to support this integration.
    - Make sure the device has network access and is configured so that it can connect to your MQTT/cloud backend.
-   - In the Jackery Home app, long-press the app logo to open the configuration screen.
-   - In the Jackery Home app configuration, **replace the IP with the address of your own MQTT server**.
-   ![jackery_home_config](./img/app_config_mqtt.png)
+   - In the Jackery app, long-press the app logo to open the configuration screen.
+   - In the Jackery app configuration, **replace the IP with the address of your own MQTT server**.
+   ![jackery_config](./img/app_config_mqtt.png)
 
 ---
 
@@ -52,23 +52,23 @@ Before the JackeryHome integration can receive any data, **two things must be in
    
    - Open HACS in Home Assistant
    - Click the three dots in the top-right → **Custom repositories**
-   - Add repository URL: `https://github.com/suyulin/jackery_home`
+   - Add repository URL: `https://github.com/suyulin/jackery`
    - Category: `Integration`
    - Click **Add**
 2. **Install the integration**
    
-   - In HACS, search for **"JackeryHome"**
+   - In HACS, search for **"Jackery"**
    - Click **Install**
    - Restart Home Assistant
 3. **Configure the integration**
    
    - Go to **Settings → Devices & Services → Add Integration**
-   - Search for **"JackeryHome"**
+   - Search for **"Jackery"**
    - Enter an MQTT topic prefix if needed (default: `homeassistant/sensor`)
    - Submit to finish configuration
-  ![config](./img/jackery_home_add.png)
-  ![config](./img/jackery_home_config.png)
-> **Requirement**: The built-in **MQTT integration** must be configured and connected to your MQTT broker **before** JackeryHome will work.
+  ![config](./img/jackery_add.png)
+  ![config](./img/jackery_config.png)
+> **Requirement**: The built-in **MQTT integration** must be configured and connected to your MQTT broker **before** Jackery will work.
 
 ### Example: Energy Flow Card Plus
 

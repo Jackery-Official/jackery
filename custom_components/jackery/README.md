@@ -1,4 +1,4 @@
-# JackeryHome - Home Assistant 自定义集成
+# Jackery - Home Assistant 自定义集成
 
 这是一个 Home Assistant 自定义集成，用于通过 MQTT 接收能源监控数据并创建传感器实体。
 
@@ -29,7 +29,7 @@
 
 ⚠️ **重要：本集成依赖 Home Assistant 的 MQTT 集成**
 
-在安装 JackeryHome 之前，您必须先配置 MQTT 集成：
+在安装 Jackery 之前，您必须先配置 MQTT 集成：
 
 1. 进入 Home Assistant 的 **设置** → **设备与服务**
 2. 点击 **添加集成**，搜索 **MQTT**
@@ -46,17 +46,17 @@
 2. 进入 HACS → 集成
 3. 点击右上角菜单 → 自定义仓库
 4. 添加此仓库 URL 并选择类别为"集成"
-5. 搜索 "JackeryHome" 并安装
+5. 搜索 "Jackery" 并安装
 6. 重启 Home Assistant
 
 ### 方式 B：手动安装
 
-将 `custom_components/JackeryHome` 文件夹复制到 Home Assistant 的 `config/custom_components/` 目录下：
+将 `custom_components/Jackery` 文件夹复制到 Home Assistant 的 `config/custom_components/` 目录下：
 
 ```
 config/
   custom_components/
-    JackeryHome/
+    Jackery/
       __init__.py
       manifest.json
       sensor.py
@@ -71,7 +71,7 @@ config/
 
 1. 进入 Home Assistant 的 **设置** → **设备与服务**
 2. 点击右下角的 **添加集成** 按钮
-3. 搜索 "JackeryHome"
+3. 搜索 "Jackery"
 4. 输入 MQTT 主题前缀（可选，默认：`homeassistant/sensor`）
 5. 点击提交完成配置
 
@@ -172,7 +172,7 @@ config/
    python main.py
    ```
 3. 模拟器会自动发布传感器数据到 MQTT
-4. Home Assistant 的 JackeryHome 集成会自动接收并显示数据
+4. Home Assistant 的 Jackery 集成会自动接收并显示数据
 
 ## 查看传感器
 
@@ -239,7 +239,7 @@ entities:
 logger:
   default: info
   logs:
-    custom_components.jackery_home: debug
+    custom_components.jackery: debug
     homeassistant.components.mqtt: debug
 ```
 

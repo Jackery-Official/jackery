@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# JackeryHome HACS 发布准备脚本
+# Jackery HACS 发布准备脚本
 # 此脚本帮助你准备发布到 HACS
 
 set -e
 
-echo "🚀 准备发布 JackeryHome 到 HACS"
+echo "🚀 准备发布 Jackery 到 HACS"
 echo ""
 
 # 检查是否在正确的目录
@@ -35,7 +35,7 @@ if ! git diff-index --quiet HEAD --; then
 fi
 
 # 获取当前版本
-CURRENT_VERSION=$(grep -o '"version": "[^"]*"' custom_components/JackeryHome/manifest.json | cut -d'"' -f4)
+CURRENT_VERSION=$(grep -o '"version": "[^"]*"' custom_components/Jackery/manifest.json | cut -d'"' -f4)
 echo "📦 当前版本: $CURRENT_VERSION"
 echo ""
 
@@ -50,9 +50,9 @@ fi
 # 更新 manifest.json 中的版本号
 if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
     echo "📝 更新 manifest.json 中的版本号..."
-    sed -i.bak "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" custom_components/JackeryHome/manifest.json
-    rm custom_components/JackeryHome/manifest.json.bak
-    git add custom_components/JackeryHome/manifest.json
+    sed -i.bak "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" custom_components/Jackery/manifest.json
+    rm custom_components/Jackery/manifest.json.bak
+    git add custom_components/Jackery/manifest.json
     git commit -m "版本更新至 v$NEW_VERSION"
     echo "✅ 版本号已更新"
 fi
@@ -74,14 +74,14 @@ echo "✅ 准备完成！"
 echo ""
 echo "📋 下一步操作："
 echo "1. 访问 GitHub 创建 Release:"
-echo "   https://github.com/suyulin/jackery_home/releases/new?tag=$TAG_NAME"
+echo "   https://github.com/suyulin/jackery/releases/new?tag=$TAG_NAME"
 echo ""
 echo "2. 或者使用以下命令创建 Release (需要 gh CLI):"
 echo "   gh release create $TAG_NAME --title \"$TAG_NAME\" --notes \"Release $TAG_NAME\""
 echo ""
 echo "3. 用户可以通过以下方式添加到 HACS:"
 echo "   - 在 HACS 中添加自定义存储库"
-echo "   - URL: https://github.com/suyulin/jackery_home"
+echo "   - URL: https://github.com/suyulin/jackery"
 echo "   - 类别: Integration"
 echo ""
 echo "4. 查看完整发布指南:"
