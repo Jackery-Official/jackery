@@ -16,6 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 # 配置数据模式
 DATA_SCHEMA = vol.Schema(
     {
+        vol.Required("token"): str,
         vol.Optional(
             "topic_prefix",
             default="hb"

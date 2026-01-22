@@ -210,10 +210,11 @@ SENSORS = {
 class JackeryDataCoordinator:
     """协调器：管理MQTT订阅和数据获取，供所有传感器实体共享使用."""
 
-    def __init__(self, hass: HomeAssistant, topic_prefix: str) -> None:
+    def __init__(self, hass: HomeAssistant, topic_prefix: str, token: str) -> None:
         """初始化协调器."""
         self.hass = hass
         self._topic_prefix = topic_prefix
+        self._token = token
         self._topic_root = "hb" 
         
         self._device_sn = ""  # 设备序列号
@@ -329,6 +330,7 @@ class JackeryDataCoordinator:
                     "eventId": 0,
                     "messageId": random.randint(1000, 9999),
                     "ts": int(time.time()),
+                    "token": self._token,
                     "body": None
                 }
                 
@@ -357,9 +359,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up Jackery sensors."""
     config = config_entry.data
-    topic_prefix = config.get("topic_prefix", "hb") 
+    topic_prefix = config.get("topic_prefix", "hb")
+    token = config.get("token")
     
-    coordinator = JackeryDataCoordinator(hass, topic_prefix)
+    coordinator = JackeryDataCoordinator(hass, topic_prefix, token)
     hass.data[DOMAIN][config_entry.entry_id]["coordinator"] = coordinator
     
     entities = []
