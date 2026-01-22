@@ -46,7 +46,13 @@ if ! git diff-index --quiet HEAD --; then
 fi
 
 # 获取当前版本
-CURRENT_VERSION=$(grep -o '"version": "[^"].*"' "$MANIFEST_FILE" | cut -d'"' -f4)
+if [ -f "$MANIFEST_FILE" ]; then
+    CURRENT_VERSION=$(python3 -c "import json; print(json.load(open('$MANIFEST_FILE'))['version'])")
+else
+    echo "❌ 无法读取文件: $MANIFEST_FILE"
+    exit 1
+fi
+
 echo "📦 当前版本: $CURRENT_VERSION"
 echo ""
 
@@ -61,13 +67,19 @@ fi
 # 更新 manifest.json 中的版本号
 if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
     echo "📝 更新 manifest.json 中的版本号..."
-    # 使用 .bak 后缀以兼容 macOS 和 Linux sed
-    sed -i.bak "s/"version": "$CURRENT_VERSION"/"version": "$NEW_VERSION"/" "$MANIFEST_FILE"
+    # 使用正则匹配替换，更稳健
+    sed -i.bak "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$MANIFEST_FILE"
     rm "$MANIFEST_FILE.bak"
     
     git add "$MANIFEST_FILE"
-    git commit -m "版本更新至 v$NEW_VERSION"
-    echo "✅ 版本号已更新"
+    
+    # 仅在有变更时提交
+    if ! git diff-index --quiet HEAD --; then
+        git commit -m "版本更新至 v$NEW_VERSION"
+        echo "✅ 版本号已更新"
+    else
+        echo "⚠️  版本号未发生实际变化或无法提交"
+    fi
 fi
 
 # 推送到 GitHub
