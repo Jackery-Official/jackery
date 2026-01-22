@@ -1,9 +1,13 @@
 #!/bin/bash
 
 # Jackery HACS 发布准备脚本
-# 此脚本帮助你准备发布到 HACS
+# 此脚本帮助你准备发布到 HACS 并支持自动创建 GitHub Release
 
 set -e
+
+# 配置路径
+COMPONENT_PATH="custom_components/jackery"
+MANIFEST_FILE="$COMPONENT_PATH/manifest.json"
 
 echo "🚀 准备发布 Jackery 到 HACS"
 echo ""
@@ -13,6 +17,13 @@ if [ ! -f "hacs.json" ]; then
     echo "❌ 错误：未找到 hacs.json 文件"
     echo "请确保在项目根目录运行此脚本"
     exit 1
+fi
+
+# 检查 manifest 文件是否存在
+if [ ! -f "$MANIFEST_FILE" ]; then
+     echo "❌ 错误：未找到 $MANIFEST_FILE"
+     echo "请确认文件路径是否正确"
+     exit 1
 fi
 
 # 检查是否有未提交的更改
@@ -35,7 +46,7 @@ if ! git diff-index --quiet HEAD --; then
 fi
 
 # 获取当前版本
-CURRENT_VERSION=$(grep -o '"version": "[^"]*"' custom_components/Jackery/manifest.json | cut -d'"' -f4)
+CURRENT_VERSION=$(grep -o '"version": "[^"].*"' "$MANIFEST_FILE" | cut -d'"' -f4)
 echo "📦 当前版本: $CURRENT_VERSION"
 echo ""
 
@@ -50,9 +61,11 @@ fi
 # 更新 manifest.json 中的版本号
 if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
     echo "📝 更新 manifest.json 中的版本号..."
-    sed -i.bak "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" custom_components/Jackery/manifest.json
-    rm custom_components/Jackery/manifest.json.bak
-    git add custom_components/Jackery/manifest.json
+    # 使用 .bak 后缀以兼容 macOS 和 Linux sed
+    sed -i.bak "s/"version": "$CURRENT_VERSION"/"version": "$NEW_VERSION"/" "$MANIFEST_FILE"
+    rm "$MANIFEST_FILE.bak"
+    
+    git add "$MANIFEST_FILE"
     git commit -m "版本更新至 v$NEW_VERSION"
     echo "✅ 版本号已更新"
 fi
@@ -62,29 +75,89 @@ echo ""
 echo "📤 推送到 GitHub..."
 git push origin main
 
-# 创建 tag
+# 处理 Tag
 TAG_NAME="v$NEW_VERSION"
+
+# 检查本地 tag 是否存在
+if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+    echo "⚠️  Tag $TAG_NAME 本地已存在"
+    read -p "是否删除旧 Tag 并重新创建? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        git tag -d "$TAG_NAME"
+        # 尝试删除远程 tag (如果存在)
+        git push origin :refs/tags/"$TAG_NAME" 2>/dev/null || true
+        echo "🗑️  旧 Tag 已清除"
+    else
+        echo "❌ 停止发布：Tag 已存在且未选择覆盖"
+        exit 1
+    fi
+fi
+
 echo ""
 echo "🏷️  创建 Git tag: $TAG_NAME"
 git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
 git push origin "$TAG_NAME"
 
 echo ""
-echo "✅ 准备完成！"
-echo ""
-echo "📋 下一步操作："
-echo "1. 访问 GitHub 创建 Release:"
-echo "   https://github.com/suyulin/jackery/releases/new?tag=$TAG_NAME"
-echo ""
-echo "2. 或者使用以下命令创建 Release (需要 gh CLI):"
-echo "   gh release create $TAG_NAME --title \"$TAG_NAME\" --notes \"Release $TAG_NAME\""
-echo ""
-echo "3. 用户可以通过以下方式添加到 HACS:"
-echo "   - 在 HACS 中添加自定义存储库"
-echo "   - URL: https://github.com/suyulin/jackery"
-echo "   - 类别: Integration"
-echo ""
-echo "4. 查看完整发布指南:"
-echo "   cat HACS_PUBLISHING_GUIDE.md"
+echo "✅ 代码和 Tag 推送完成！"
 echo ""
 
+# GitHub Release 自动化
+RELEASE_CREATED=false
+
+if command -v gh &> /dev/null; then
+    echo "🤖 检测到 GitHub CLI (gh)"
+    read -p "是否使用 gh 立即创建 GitHub Release? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        
+        RELEASE_TITLE="$TAG_NAME"
+        read -p "请输入 Release 标题 (默认: $TAG_NAME): " input_title
+        if [ -n "$input_title" ]; then
+            RELEASE_TITLE="$input_title"
+        fi
+
+        echo "您可以选择 Release Notes 来源:"
+        echo "1) 自动生成 (gh --generate-notes)"
+        echo "2) 使用简单的 'Release v...'"
+        echo "3) 取消自动发布"
+        read -p "请选择 (1/2/3, 默认 1): " note_choice
+        note_choice=${note_choice:-1}
+
+        case $note_choice in
+            1)
+                echo "⏳ 正在创建 Release (自动生成日志)..."
+                if gh release create "$TAG_NAME" --title "$RELEASE_TITLE" --generate-notes; then
+                    RELEASE_CREATED=true
+                fi
+                ;;
+            2)
+                echo "⏳ 正在创建 Release..."
+                if gh release create "$TAG_NAME" --title "$RELEASE_TITLE" --notes "Release $TAG_NAME"; then
+                    RELEASE_CREATED=true
+                fi
+                ;;
+            *)
+                echo "已取消 gh 发布。"
+                ;;
+        esac
+
+        if [ "$RELEASE_CREATED" = true ]; then
+             echo "🎉 GitHub Release 创建成功！"
+             # 尝试获取 release url
+             gh release view "$TAG_NAME" --json url --template '{{.url}}' || echo ""
+             echo ""
+        fi
+    fi
+fi
+
+if [ "$RELEASE_CREATED" = false ]; then
+    echo "📋 下一步操作 (手动发布):"
+    echo "1. 访问 GitHub 创建 Release:"
+    echo "   https://github.com/suyulin/jackery/releases/new?tag=$TAG_NAME"
+    echo ""
+    echo "2. 如果尚未安装，推荐安装 GitHub CLI (gh) 以便下次自动发布。"
+fi
+
+echo "✅ 流程结束"
