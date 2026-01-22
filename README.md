@@ -64,10 +64,12 @@ Before the Jackery integration can receive any data, **two things must be in pla
    
    - Go to **Settings → Devices & Services → Add Integration**
    - Search for **"Jackery"**
-   - Enter an MQTT topic prefix if needed (default: `homeassistant/sensor`)
+   - **Enter your Token** (Required for authentication)
+     - You can find this token in your Jackery app settings or device documentation.
+   - Enter an MQTT topic prefix if needed (default: `hb`)
    - Submit to finish configuration
-  ![config](./img/jackery_add.png)
-  ![config](./img/jackery_config.png)
+  ![config](./img/jackery_home_add.png)
+  ![config](./img/jackery_home_config.png)
 > **Requirement**: The built-in **MQTT integration** must be configured and connected to your MQTT broker **before** Jackery will work.
 
 ### Example: Energy Flow Card Plus

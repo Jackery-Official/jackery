@@ -1,29 +1,42 @@
 # Jackery - Home Assistant 自定义集成
 
-这是一个 Home Assistant 自定义集成，用于通过 MQTT 接收能源监控数据并创建传感器实体。
+这是一个 Home Assistant 自定义集成，用于通过 MQTT 接收 Jackery 储能设备的监控数据并创建传感器实体。
 
 ## 功能特性
 
 该集成采用**协调器模式**（Coordinator Pattern），所有传感器共享一个 `JackeryDataCoordinator` 实例，统一管理 MQTT 订阅和数据请求，提高效率并减少资源占用。
 
-### 功率传感器（实时监测）
+### 传感器列表
 
-- **Solar Power** (太阳能发电功率) - 单位：W
-- **Home Power** (家庭负载功率) - 单位：W
-- **Grid Import** (电网购买功率) - 单位：W
-- **Grid Export** (电网出售功率) - 单位：W
-- **Battery Charge** (电池充电功率) - 单位：W
-- **Battery Discharge** (电池放电功率) - 单位：W
-- **Battery State of Charge** (电池电量) - 单位：%
+集成提供以下丰富的传感器数据：
 
-### 能源传感器（用于能源仪表板）
+#### 🔋 电池信息
+- **Battery SOC** (电池电量) - 单位：%
+- **Battery Charge Power** (电池充电功率) - 单位：W
+- **Battery Discharge Power** (电池放电功率) - 单位：W
+- **Battery Temperature** (电池温度) - 单位：°C
+- **Battery Count** (电池数量)
 
-- **Solar Energy** (太阳能发电总量) - 单位：kWh
-- **Home Energy** (家庭用电总量) - 单位：kWh
-- **Grid Import Energy** (电网购买总量) - 单位：kWh
-- **Grid Export Energy** (电网出售总量) - 单位：kWh
-- **Battery Charge Energy** (电池充电总量) - 单位：kWh
-- **Battery Discharge Energy** (电池放电总量) - 单位：kWh
+#### ☀️ 太阳能 (PV)
+- **Solar Power** (太阳能总功率) - 单位：W
+- **Solar Power PV1 - PV4** (各路 PV 功率) - 单位：W
+
+#### ⚡ 电网 (Grid)
+- **Grid Import Power** (电网取电功率) - 单位：W
+- **Grid Export Power** (电网馈电功率) - 单位：W
+- **Max Output Power** (最大并网输出功率) - 单位：W
+
+#### 🔌 EPS (离网输出)
+- **EPS Output Power** (EPS 输出功率) - 单位：W
+- **EPS Input Power** (EPS 输入功率) - 单位：W
+- **EPS State** (EPS 状态)
+- **EPS Switch Status** (EPS 开关状态)
+
+#### ⚙️ 设置与状态
+- **SOC Charge Limit** (充电 SOC 限制) - 单位：%
+- **SOC Discharge Limit** (放电 SOC 限制) - 单位：%
+- **Auto Standby Allowed** (是否允许自动待机)
+- **Auto Standby Status** (自动待机状态)
 
 ## 前置要求
 
@@ -51,12 +64,12 @@
 
 ### 方式 B：手动安装
 
-将 `custom_components/Jackery` 文件夹复制到 Home Assistant 的 `config/custom_components/` 目录下：
+将 `custom_components/jackery` 文件夹复制到 Home Assistant 的 `config/custom_components/` 目录下：
 
 ```
 config/
   custom_components/
-    Jackery/
+    jackery/
       __init__.py
       manifest.json
       sensor.py
@@ -72,8 +85,9 @@ config/
 1. 进入 Home Assistant 的 **设置** → **设备与服务**
 2. 点击右下角的 **添加集成** 按钮
 3. 搜索 "Jackery"
-4. 输入 MQTT 主题前缀（可选，默认：`homeassistant/sensor`）
-5. 点击提交完成配置
+4. **Token**: 输入您的设备 Token（必填，用于认证）
+5. **MQTT Topic Prefix**: 输入 MQTT 主题前缀（可选，默认：`hb`）
+6. 点击提交完成配置
 
 如果 MQTT 集成未配置或不可用，将显示错误提示。
 
@@ -84,152 +98,107 @@ config/
 集成使用 `JackeryDataCoordinator` 类统一管理所有传感器的数据获取：
 
 - **单一协调器实例**：所有传感器共享一个协调器，避免重复订阅和请求
-- **统一数据请求**：每 5 秒发送一次 `data_get` 请求，包含所有传感器的 `meter_sn`
-- **自动分发数据**：协调器接收响应后，根据 `meter_sn` 自动分发给对应的传感器
-- **设备序列号管理**：通过 LWT 消息自动获取和更新设备序列号
+- **统一数据请求**：每 10 秒发送一次查询请求
+- **自动分发数据**：协调器接收响应后，根据 JSON 字段自动分发给对应的传感器
+- **自动发现设备**：通过监听状态主题自动获取设备序列号 (SN)
 
 ### 数据流程
 
-1. **启动阶段**：
-   - 协调器订阅 LWT 主题 (`v1/iot_gw/gw_lwt`) 获取设备序列号
-   - 协调器订阅数据响应主题 (`v1/iot_gw/gw/data`)
-   - 启动定时任务，每 5 秒发送一次数据请求
+1. **发现阶段**：
+   - 协调器订阅通配符主题 (`hb/device/+/status`)
+   - 当接收到消息时，从主题中提取设备 SN (`hb/device/{sn}/status`)
 
-2. **数据请求**：
-   - 协调器收集所有传感器的 `meter_sn`
-   - 构造包含所有 `meter_sn` 的 `data_get` 请求
-   - 发送到 `v1/iot_gw/cloud/data` 主题
+2. **轮询阶段**：
+   - 获得设备 SN 后，启动定时任务（默认 10秒）
+   - 向 `hb/device/{sn}/action` 发送查询指令 (`type: 25`)
 
 3. **数据处理**：
-   - 接收设备响应（JSON 格式）
-   - 解析 `meter_list` 中的 `[meter_sn, meter_value]` 数据
-   - 根据 `meter_sn` 匹配对应的传感器实体
-   - 调用传感器的 `_process_meter_value()` 处理特殊值（如正负分离）
-   - 更新传感器状态并通知 Home Assistant
+   - 接收设备在 `status` 主题回复的 JSON 数据
+   - 解析 JSON 字段（如 `batSoc`, `pvPw` 等）
+   - 转换数据单位（如温度除以 10）
+   - 更新所有关联的传感器实体状态
 
 ## MQTT 主题格式
 
-集成会订阅以下 MQTT 主题来接收设备数据：
+集成使用以下 MQTT 主题模式（假设前缀为默认的 `hb`）：
 
-- **LWT 主题**: `v1/iot_gw/gw_lwt` - 接收设备上线/离线状态和序列号
-  ```json
-  {
-    "gw_sn": "26392658575364"
-  }
-  ```
-
-- **数据响应主题**: `v1/iot_gw/gw/data` - 接收设备响应的传感器数据
-  ```json
-  {
-    "cmd": "data_get",
-    "info": {
-      "dev_list": [
-        {
-          "dev_sn": "ems_26392658575364",
-          "meter_list": [
-            ["1026001", 2500.0],
-            ["21171201", 1800.0],
-            ...
-          ]
-        }
-      ]
+- **状态/数据主题**: `hb/device/{sn}/status`
+  - 设备在此主题发布实时状态数据
+  - Payload 示例：
+    ```json
+    {
+      "batSoc": 85,
+      "batInPw": 0,
+      "batOutPw": 150,
+      "cellTemp": 255,
+      "pvPw": 400,
+      ...
     }
-  }
-  ```
+    ```
 
-集成会定期向以下主题发送数据请求：
-
-- **请求主题**: `v1/iot_gw/cloud/data` - 发送 `data_get` 命令请求传感器数据
-  ```json
-  {
-    "cmd": "data_get",
-    "gw_sn": "26392658575364",
-    "timestamp": "1234567890123",
-    "token": "5678",
-    "info": {
-      "dev_list": [
-        {
-          "dev_sn": "ems_26392658575364",
-          "meter_list": ["1026001", "21171201", "16930817", ...]
-        }
-      ]
+- **控制/查询主题**: `hb/device/{sn}/action`
+  - 集成向此主题发送查询指令
+  - Payload 示例：
+    ```json
+    {
+      "type": 25,
+      "eventId": 0,
+      "messageId": 1234,
+      "ts": 1700000000,
+      "token": "YOUR_TOKEN",
+      "body": null
     }
-  }
-  ```
-
-### 数据请求间隔
-
-- **默认间隔**：5 秒（`REQUEST_INTERVAL = 5`）
-- 所有传感器共享同一个请求，减少 MQTT 消息数量
-
-## 与模拟器配合使用
-
-本集成与 `main.py` 模拟器完美配合：
-
-1. 确保 Home Assistant 已配置好 MQTT 集成并连接到同一个 MQTT broker
-2. 运行 `main.py` 模拟器：
-   ```bash
-   python main.py
-   ```
-3. 模拟器会自动发布传感器数据到 MQTT
-4. Home Assistant 的 Jackery 集成会自动接收并显示数据
+    ```
 
 ## 查看传感器
 
 配置完成后，你可以在以下位置查看传感器：
 
 - **开发者工具** → **状态** → 搜索 "jackery" 或传感器名称
-- 传感器实体 ID 格式：`sensor.solar_power`、`sensor.home_power`、`sensor.solar_energy` 等
+- 传感器实体 ID 格式：`sensor.battery_soc`、`sensor.solar_power` 等
 - 每个传感器包含以下属性：
-  - `sensor_id`: 传感器内部标识
-  - `meter_sn`: 对应的 meter 序列号
-  - `device_sn`: 设备序列号（从 LWT 消息获取）
+  - `device_sn`: 设备序列号
+  - `raw_key`: 原始 JSON 字段名
 
 ## 在 Lovelace 中使用
 
-你可以使用这些传感器创建能源流图表。例如使用 Energy Flow Card：
+你可以使用这些传感器创建能源流图表。例如使用 Energy Flow Card Plus：
 
 ```yaml
 type: custom:energy-flow-card-plus
 entities:
   solar:
     entity: sensor.solar_power
+    name: Solar
   grid:
     entity:
-      consumption: sensor.grid_import
-      production: sensor.grid_export
+      consumption: sensor.grid_import_power
+      production: sensor.grid_export_power
+    name: Grid
   battery:
     entity:
-      consumption: sensor.battery_charge
-      production: sensor.battery_discharge
+      consumption: sensor.battery_charge_power
+      production: sensor.battery_discharge_power
     state_of_charge: sensor.battery_soc
+    name: Battery
   home:
-    entity: sensor.home_power
+    entity: sensor.eps_output_power  # 或其他代表家庭负载的传感器
+    name: Home
 ```
 
 ## 故障排除
 
-### MQTT 连接错误
+### 常见问题
 
-如果看到 "Host is unreachable" 或 "MQTT not ready" 错误：
+1. **无法发现设备**：
+   - 确认设备已连接到 MQTT Broker
+   - 使用 MQTT 工具（如 MQTT Explorer）监听 `hb/#`，确认设备是否有发送消息
+   - 确认配置中的 "Topic Prefix" 与设备实际使用的一致（默认为 `hb`）
 
-1. **检查 MQTT 集成**：确保 MQTT 集成已配置且连接正常
-2. **验证 Broker 地址**：确认 MQTT broker 地址和端口正确
-3. **测试连接**：在终端使用 `mosquitto_sub` 测试 MQTT 连接
-4. **查看详细日志**：启用调试日志查看更多信息
-
-详细的故障排除指南请参考：[TROUBLESHOOTING.md](../../../TROUBLESHOOTING.md)
-
-### 传感器不显示数据
-
-1. 检查 MQTT broker 是否正常运行
-2. 确认设备已连接并发送 LWT 消息到 `v1/iot_gw/gw_lwt`
-3. 使用 MQTT Explorer 监听 `v1/iot_gw/#` 主题查看消息
-4. 查看 Home Assistant 日志：**设置** → **系统** → **日志**
-5. 确认传感器属性中的 `device_sn` 是否正确
-6. 检查协调器是否已启动：日志中应看到 "Coordinator subscribed to LWT topic" 和 "Coordinator subscribed to data topic"
-7. 确认数据请求是否发送：日志中应看到 "Coordinator sent data_get request"
-8. 验证设备响应格式：响应应包含 `cmd: "data_get"` 和正确的 `meter_list` 结构
+2. **有设备 SN 但无数据更新**：
+   - 检查 Token 是否正确
+   - 检查日志中是否有 "Sent poll request" 记录
+   - 确认设备是否响应了 `type: 25` 的请求
 
 ### 启用调试日志
 
@@ -240,52 +209,8 @@ logger:
   default: info
   logs:
     custom_components.jackery: debug
-    homeassistant.components.mqtt: debug
 ```
-
-## 传感器值处理逻辑
-
-集成会根据传感器类型对原始 `meter_value` 进行特殊处理：
-
-- **Grid Import**：仅显示负值（取绝对值），正值显示为 0
-- **Grid Export**：仅显示正值，负值显示为 0
-- **Battery Charge**：仅显示负值（取绝对值），正值显示为 0
-- **Battery Discharge**：仅显示正值，负值显示为 0
-- **Battery SOC**：原始值乘以 0.1 转换为百分比
-- **其他传感器**：直接使用原始值
-
-## Meter SN 映射
-
-每个传感器对应一个唯一的 `meter_sn`，用于在设备响应中识别数据：
-
-| 传感器 ID | Meter SN |
-|----------|----------|
-| `solar_power` | 1026001 |
-| `home_power` | 21171201 |
-| `grid_import_power` / `grid_export_power` | 16930817 |
-| `battery_charge_power` / `battery_discharge_power` | 16931841 |
-| `battery_soc` | 21548033 |
-| `solar_energy` | 16961537 |
-| `home_energy` | 16936961 |
-| `grid_import_energy` | 16959489 |
-| `grid_export_energy` | 16960513 |
-| `battery_charge_energy` | 16952321 |
-| `battery_discharge_energy` | 16953345 |
-
-## 技术细节
-
-- **架构模式**: 协调器模式（Coordinator Pattern）
-- **依赖**: Home Assistant MQTT 集成
-- **协议**: MQTT (QoS 1)
-- **更新方式**: 主动请求 + 推送响应（每 5 秒）
-- **传感器类型**: 功率传感器、能源传感器、电池传感器
-- **状态类**: 
-  - 功率传感器：`MEASUREMENT`（测量值）
-  - 能源传感器：`TOTAL_INCREASING`（累计递增）
-  - 电池传感器：`MEASUREMENT`（测量值）
-- **设备类**: `POWER`、`ENERGY`、`BATTERY`
 
 ## 许可证
 
 MIT License
-
