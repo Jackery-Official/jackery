@@ -113,7 +113,7 @@ SENSORS = {
 
     # 电网相关
     "grid_import_power": { # Grid -> System (outOngridPw)
-        "json_key": "outOngridPw",
+        "json_key": "inOngridPw",
         "name": "Grid Import Power",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:transmission-tower-import",
@@ -121,7 +121,7 @@ SENSORS = {
         "state_class": SensorStateClass.MEASUREMENT,
     },
     "grid_export_power": { # System -> Grid/Home (inOngirdPw)
-        "json_key": "inOngridPw",
+        "json_key": "outOngridPw",
         "name": "Grid Export Power",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:transmission-tower-export",
