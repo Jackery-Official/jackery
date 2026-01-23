@@ -3,11 +3,10 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
+from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.components import mqtt
 
 from . import DOMAIN
 
@@ -16,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 # 配置数据模式
 DATA_SCHEMA = vol.Schema(
     {
-        vol.Required("mqtt_host"): str,
+
         vol.Required("device_sn"): str,
         vol.Required("token"): str,
         vol.Optional(
@@ -38,7 +37,7 @@ class JackeryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the initial step."""
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
-        
+
         errors = {}
 
         if user_input is not None:
@@ -51,7 +50,7 @@ class JackeryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     f"device_sn: {user_input.get('device_sn')}, "
                     f"topic_prefix: {user_input.get('topic_prefix', 'hb')}"
                 )
-                
+
                 return self.async_create_entry(
                     title="Jackery",
                     data=user_input,
@@ -69,4 +68,3 @@ class JackeryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_import(self, import_config: dict[str, Any]) -> FlowResult:
         """Import a config entry from configuration.yaml."""
         return await self.async_step_user(import_config)
-

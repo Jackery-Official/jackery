@@ -121,7 +121,7 @@ SENSORS = {
         "state_class": SensorStateClass.MEASUREMENT,
     },
     "grid_export_power": { # System -> Grid/Home (inOngirdPw)
-        "json_key": "inOngirdPw",
+        "json_key": "inOngridPw",
         "name": "Grid Export Power",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:transmission-tower-export",
@@ -308,10 +308,7 @@ class JackeryDataCoordinator:
     def _distribute_data(self, data: dict) -> None:
         """分发数据给传感器."""
         for sensor_id, entity in self._sensors.items():
-            json_key = SENSORS[sensor_id].get("json_key")
-            if json_key and json_key in data:
-                raw_value = data[json_key]
-                entity._update_from_coordinator(raw_value)
+            entity._update_from_coordinator(data)
 
     async def _periodic_data_request(self) -> None:
         """定期发送 'type: 25' 指令请求全量数据."""
@@ -428,8 +425,23 @@ class JackerySensor(SensorEntity):
         self._coordinator.unregister_sensor(self._sensor_id)
         await super().async_will_remove_from_hass()
 
-    def _update_from_coordinator(self, value: Any) -> None:
+    def _update_from_coordinator(self, data: dict) -> None:
         """Receive data from coordinator."""
+        # Special handling for EPS Output Power (Bidirectional)
+        if self._sensor_id == "eps_output_power":
+            out_p = float(data.get("swEpsOutPw", 0))
+            in_p = float(data.get("swEpsInPw", 0))
+            self._attr_native_value = out_p - in_p
+            self._attr_available = True
+            self.async_write_ha_state()
+            return
+
+        json_key = self._config.get("json_key")
+        if not json_key or json_key not in data:
+            return
+
+        value = data[json_key]
+
         # Process specific conversions
         if self._sensor_id == "battery_temperature":
             # cellTemp is 0.1 C
