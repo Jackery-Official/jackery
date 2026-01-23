@@ -210,14 +210,15 @@ SENSORS = {
 class JackeryDataCoordinator:
     """协调器：管理MQTT订阅和数据获取，供所有传感器实体共享使用."""
 
-    def __init__(self, hass: HomeAssistant, topic_prefix: str, token: str) -> None:
+    def __init__(self, hass: HomeAssistant, topic_prefix: str, token: str, mqtt_host: str, device_sn: str) -> None:
         """初始化协调器."""
         self.hass = hass
         self._topic_prefix = topic_prefix
         self._token = token
-        self._topic_root = "hb"
+        self._mqtt_host = mqtt_host
+        self._device_sn = device_sn
+        self._topic_root = topic_prefix
 
-        self._device_sn = "T02601220110001"  # 设备序列号
         self._sensors = {}  # {sensor_id: entity}
         self._data_task = None
         self._subscribed = False
@@ -279,8 +280,8 @@ class JackeryDataCoordinator:
             if isinstance(payload, bytes):
                 payload = payload.decode("utf-8")
 
-            # Extract device SN from topic: hb/device/{sn}/status
-            match = re.search(r"hb/device/([^/]+)/status", topic)
+            # Extract device SN from topic: {prefix}/device/{sn}/status
+            match = re.search(rf"{self._topic_root}/device/([^/]+)/status", topic)
             if match:
                 sn = match.group(1)
                 if not self._device_sn:
@@ -292,6 +293,9 @@ class JackeryDataCoordinator:
             # Parse Payload
             try:
                 data = json.loads(payload)
+                # 如果数据在 body 字段中，则提取 body
+                if "body" in data and isinstance(data["body"], dict):
+                    data = data["body"]
             except json.JSONDecodeError:
                 _LOGGER.warning(f"Invalid JSON payload on {topic}")
                 return
@@ -311,7 +315,7 @@ class JackeryDataCoordinator:
 
     async def _periodic_data_request(self) -> None:
         """定期发送 'type: 25' 指令请求全量数据."""
-        _LOGGER.info("Starting periodic data polling...")
+        _LOGGER.info(f"Starting periodic data polling for {self._device_sn} via {self._mqtt_host}...")
         await asyncio.sleep(2)
 
         while True:
@@ -361,8 +365,10 @@ async def async_setup_entry(
     config = config_entry.data
     topic_prefix = config.get("topic_prefix", "hb")
     token = config.get("token")
+    mqtt_host = config.get("mqtt_host")
+    device_sn = config.get("device_sn")
 
-    coordinator = JackeryDataCoordinator(hass, topic_prefix, token)
+    coordinator = JackeryDataCoordinator(hass, topic_prefix, token, mqtt_host, device_sn)
     hass.data[DOMAIN][config_entry.entry_id]["coordinator"] = coordinator
 
     entities = []
@@ -434,15 +440,14 @@ class JackerySensor(SensorEntity):
         elif self._sensor_id == "battery_soc":
              self._attr_native_value = value
         elif self._sensor_id.startswith("solar_power_pv") and isinstance(value, dict):
-            # Handle dictionary for PV if it occurs, trying to find common value keys
-            # Assumption based on "PV1发电总功率" -> it might contain power
-            if "w" in value:
+            # Handle dictionary for PV if it occurs
+            if "pvPw" in value:
+                self._attr_native_value = value["pvPw"]
+            elif "w" in value:
                 self._attr_native_value = value["w"]
             elif "power" in value:
                 self._attr_native_value = value["power"]
             else:
-                # Fallback: display raw dict as string or extract first numeric value?
-                # Using str(value) for safety if structure is unknown
                 self._attr_native_value = str(value)
         else:
              self._attr_native_value = value
