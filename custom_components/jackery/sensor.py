@@ -2,9 +2,9 @@
 import asyncio
 import json
 import logging
-import time
 import random
 import re
+import time
 from typing import Any, Callable
 
 from homeassistant.components import mqtt as ha_mqtt
@@ -14,9 +14,9 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.const import UnitOfPower, UnitOfEnergy, PERCENTAGE, UnitOfTemperature
 
 from . import DOMAIN
 
@@ -68,7 +68,7 @@ SENSORS = {
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    
+
     # 太阳能
     "solar_power": {
         "json_key": "pvPw",
@@ -136,18 +136,18 @@ SENSORS = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    
+
     # EPS (离网输出)
-    "eps_output_power": { 
-        "json_key": "swEpsOutPw", 
+    "eps_output_power": {
+        "json_key": "swEpsOutPw",
         "name": "EPS Output Power",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:power-plug",
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    "eps_input_power": { 
-        "json_key": "swEpsInPw", 
+    "eps_input_power": {
+        "json_key": "swEpsInPw",
         "name": "EPS Input Power",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:power-plug",
@@ -170,7 +170,7 @@ SENSORS = {
          "device_class": None,
          "state_class": None, # 1-On, 0-Off
     },
-    
+
     # Limits & Settings & Status
     "soc_charge_limit": {
         "json_key": "socChgLimit",
@@ -215,16 +215,16 @@ class JackeryDataCoordinator:
         self.hass = hass
         self._topic_prefix = topic_prefix
         self._token = token
-        self._topic_root = "hb" 
-        
-        self._device_sn = ""  # 设备序列号
+        self._topic_root = "hb"
+
+        self._device_sn = "T02601220110001"  # 设备序列号
         self._sensors = {}  # {sensor_id: entity}
         self._data_task = None
         self._subscribed = False
-        
+
         # Topic patterns
         self._topic_status_wildcard = f"{self._topic_root}/device/+/status"
-    
+
     def register_sensor(self, sensor_id: str, entity: "JackerySensor") -> None:
         """注册传感器实体."""
         self._sensors[sensor_id] = entity
@@ -238,13 +238,13 @@ class JackeryDataCoordinator:
         """启动协调器."""
         if self._subscribed:
             return
-        
+
         try:
             # 订阅状态主题 (Wildcard) 以发现设备和接收数据
             @callback
             def message_received(msg):
                 self._handle_message(msg)
-            
+
             await ha_mqtt.async_subscribe(
                 self.hass,
                 self._topic_status_wildcard,
@@ -252,12 +252,12 @@ class JackeryDataCoordinator:
                 1
             )
             _LOGGER.info(f"Coordinator subscribed to: {self._topic_status_wildcard}")
-            
+
             self._subscribed = True
-            
+
             # 启动定时轮询
             self._data_task = asyncio.create_task(self._periodic_data_request())
-            
+
         except Exception as e:
             _LOGGER.error(f"Failed to start coordinator: {e}")
 
@@ -278,7 +278,7 @@ class JackeryDataCoordinator:
             payload = msg.payload
             if isinstance(payload, bytes):
                 payload = payload.decode("utf-8")
-            
+
             # Extract device SN from topic: hb/device/{sn}/status
             match = re.search(r"hb/device/([^/]+)/status", topic)
             if match:
@@ -312,18 +312,18 @@ class JackeryDataCoordinator:
     async def _periodic_data_request(self) -> None:
         """定期发送 'type: 25' 指令请求全量数据."""
         _LOGGER.info("Starting periodic data polling...")
-        await asyncio.sleep(2) 
-        
+        await asyncio.sleep(2)
+
         while True:
             try:
                 if not self._device_sn:
                     _LOGGER.debug("Waiting for device SN discovery...")
                     await asyncio.sleep(5)
                     continue
-                
+
                 # Construct Action Topic
                 action_topic = f"{self._topic_root}/device/{self._device_sn}/action"
-                
+
                 # Construct Payload
                 payload = {
                     "type": 25,
@@ -333,7 +333,7 @@ class JackeryDataCoordinator:
                     "token": self._token,
                     "body": None
                 }
-                
+
                 await ha_mqtt.async_publish(
                     self.hass,
                     action_topic,
@@ -342,9 +342,9 @@ class JackeryDataCoordinator:
                     False
                 )
                 _LOGGER.debug(f"Sent poll request to {action_topic}")
-                
+
                 await asyncio.sleep(REQUEST_INTERVAL)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -361,22 +361,22 @@ async def async_setup_entry(
     config = config_entry.data
     topic_prefix = config.get("topic_prefix", "hb")
     token = config.get("token")
-    
+
     coordinator = JackeryDataCoordinator(hass, topic_prefix, token)
     hass.data[DOMAIN][config_entry.entry_id]["coordinator"] = coordinator
-    
+
     entities = []
     for sensor_id, sensor_config in SENSORS.items():
-        if sensor_config.get("json_key") is None: 
-            continue 
-            
+        if sensor_config.get("json_key") is None:
+            continue
+
         entity = JackerySensor(
             sensor_id=sensor_id,
             coordinator=coordinator,
             config_entry_id=config_entry.entry_id,
         )
         entities.append(entity)
-    
+
     async_add_entities(entities)
     await coordinator.async_start()
 
@@ -394,7 +394,7 @@ class JackerySensor(SensorEntity):
         self._sensor_id = sensor_id
         self._coordinator = coordinator
         self._config = SENSORS[sensor_id]
-        
+
         self._attr_name = self._config["name"]
         self._attr_native_unit_of_measurement = self._config["unit"]
         self._attr_icon = self._config["icon"]
@@ -402,12 +402,12 @@ class JackerySensor(SensorEntity):
         self._attr_state_class = self._config["state_class"]
         self._attr_unique_id = f"jackery_{sensor_id}"
         self._attr_has_entity_name = True
-        
+
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry_id)},
             "name": "Jackery",
             "manufacturer": "Jackery",
-            "model": "Energy Monitor", 
+            "model": "Energy Monitor",
         }
 
     @property
@@ -446,7 +446,7 @@ class JackerySensor(SensorEntity):
                 self._attr_native_value = str(value)
         else:
              self._attr_native_value = value
-             
+
         self._attr_available = True
         self.async_write_ha_state()
 

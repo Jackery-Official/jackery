@@ -16,6 +16,8 @@ _LOGGER = logging.getLogger(__name__)
 # 配置数据模式
 DATA_SCHEMA = vol.Schema(
     {
+        vol.Required("mqtt_host"): str,
+        vol.Required("device_sn"): str,
         vol.Required("token"): str,
         vol.Optional(
             "topic_prefix",
@@ -45,8 +47,9 @@ class JackeryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "mqtt_not_configured"
             else:
                 _LOGGER.info(
-                    f"Creating Jackery config entry with topic_prefix: "
-                    f"{user_input.get('topic_prefix', 'hb')}"
+                    f"Creating Jackery config entry with mqtt_host: {user_input.get('mqtt_host')}, "
+                    f"device_sn: {user_input.get('device_sn')}, "
+                    f"topic_prefix: {user_input.get('topic_prefix', 'hb')}"
                 )
                 
                 return self.async_create_entry(
