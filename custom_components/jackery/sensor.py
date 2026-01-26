@@ -265,6 +265,9 @@ class JackeryDataCoordinator:
         self._data_task = None
         self._subscribed = False
 
+        self._known_plugs = set() # Set of known plug SNs
+        self.add_entities_callback = None # Callback to add new entities
+
         # Topic patterns
         self._topic_status_wildcard = f"{self._topic_root}/device/+/status"
 
@@ -344,10 +347,51 @@ class JackeryDataCoordinator:
 
             # Enrich data with calculations
             data = self._calculate_energy_flow(data)
+            
+            # Check for new plugs
+            self._check_for_new_plugs(data)
+
             self._distribute_data(data)
 
         except Exception as e:
             _LOGGER.error(f"Error handling message: {e}")
+
+    def _check_for_new_plugs(self, data: dict) -> None:
+        """检查并添加新发现的插座."""
+        plugs = data.get("plugs")
+        if not plugs or not isinstance(plugs, list):
+            return
+
+        new_entities = []
+        for plug in plugs:
+            sn = plug.get("sn")
+            if sn and sn not in self._known_plugs:
+                _LOGGER.info(f"Discovered new plug: {sn}")
+                self._known_plugs.add(sn)
+                
+                # Create plug sensor
+                # Pass entry_id if needed, but entity init can handle without it for simple cases?
+                # Need config_entry_id. We can store it in coordinator or pass it later.
+                # Actually, standard pattern is to use the config_entry passed in setup.
+                # We'll need to store entry_id in coordinator or make JackeryPlugSensor use it.
+                # Let's attach config_entry_id to coordinator in __init__? 
+                # Or just pass it. Coordinator doesn't have it currently.
+                # We'll use a property or modify init.
+                # For now, let's assume async_add_entities callback handles the addition.
+                # But we need to instantiate the entity class.
+                
+                # Wait, I need config_entry_id to create proper device_info identifiers.
+                # I'll add config_entry_id to JackeryDataCoordinator.
+                if hasattr(self, "config_entry_id"):
+                    entity = JackeryPlugSensor(
+                        plug_sn=sn,
+                        coordinator=self,
+                        config_entry_id=self.config_entry_id
+                    )
+                    new_entities.append(entity)
+
+        if new_entities and self.add_entities_callback:
+            self.add_entities_callback(new_entities)
 
     def _calculate_energy_flow(self, data: dict) -> dict:
         """
@@ -519,29 +563,29 @@ class JackeryDataCoordinator:
                     False
                 )
                 
-                # 2. Poll Sub-devices (Type 100) - specifically for CTs (devType: 2)
-                # type=100 通知设备上报特定类型子设备全量数据
-                # devType: 2 (同时获取CT&电表采集头&电表)
-                payload_100 = {
-                    "type": 100,
-                    "eventId": 0,
-                    "messageId": random.randint(1000, 9999),
-                    "ts": ts,
-                    "token": self._token,
-                    "body": {
-                        "devType": 2
+                # 2. Poll Sub-devices (Type 100) - CTs (2) and Plugs (6)
+                for dev_type in [2, 6]:
+                    payload_100 = {
+                        "type": 100,
+                        "eventId": 0,
+                        "messageId": random.randint(1000, 9999),
+                        "ts": ts,
+                        "token": self._token,
+                        "body": {
+                            "devType": dev_type
+                        }
                     }
-                }
+                    
+                    await ha_mqtt.async_publish(
+                        self.hass,
+                        action_topic,
+                        json.dumps(payload_100),
+                        0,
+                        False
+                    )
+                    await asyncio.sleep(0.5) # Avoid spamming too fast
                 
-                await ha_mqtt.async_publish(
-                    self.hass,
-                    action_topic,
-                    json.dumps(payload_100),
-                    0,
-                    False
-                )
-                
-                _LOGGER.debug(f"Sent poll requests (25 & 100) to {action_topic}")
+                _LOGGER.debug(f"Sent poll requests (25 & 100 [2,6]) to {action_topic}")
 
                 await asyncio.sleep(REQUEST_INTERVAL)
 
@@ -565,6 +609,13 @@ async def async_setup_entry(
     device_sn = config.get("device_sn")
 
     coordinator = JackeryDataCoordinator(hass, topic_prefix, token, mqtt_host, device_sn)
+    coordinator.config_entry_id = config_entry.entry_id # Assign entry_id
+    
+    # Register callback for dynamic entities
+    def add_entities_callback(new_entities):
+        async_add_entities(new_entities)
+    coordinator.add_entities_callback = add_entities_callback
+    
     hass.data[DOMAIN][config_entry.entry_id]["coordinator"] = coordinator
 
     entities = []
@@ -585,7 +636,7 @@ async def async_setup_entry(
 
 class JackerySensor(SensorEntity):
     """Jackery Sensor."""
-
+    # ... (Existing JackerySensor Code) ...
     def __init__(
         self,
         sensor_id: str,
@@ -671,4 +722,80 @@ class JackerySensor(SensorEntity):
         return {
             "device_sn": self._coordinator._device_sn,
             "raw_key": self._config.get("json_key")
+        }
+
+
+class JackeryPlugSensor(SensorEntity):
+    """Jackery Smart Plug Sensor."""
+
+    def __init__(
+        self,
+        plug_sn: str,
+        coordinator: JackeryDataCoordinator,
+        config_entry_id: str,
+    ) -> None:
+        """Initialize."""
+        self._plug_sn = plug_sn
+        self._coordinator = coordinator
+        
+        self._attr_name = f"Plug {plug_sn} Power"
+        self._attr_native_unit_of_measurement = UnitOfPower.WATT
+        self._attr_icon = "mdi:power-socket-eu"
+        self._attr_device_class = SensorDeviceClass.POWER
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_unique_id = f"jackery_plug_{plug_sn}_power"
+        self._attr_has_entity_name = True
+
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, f"plug_{plug_sn}")}, # Unique identifier for this plug device? Or attach to main?
+            # Ideally attach to main device if it's a sub-device, but having separate device in HA is also fine.
+            # Let's attach to the main Jackery device for simplicity.
+            "identifiers": {(DOMAIN, config_entry_id)},
+            "name": "Jackery",
+            "manufacturer": "Jackery",
+            "model": "Energy Monitor",
+        }
+
+    @property
+    def should_poll(self) -> bool:
+        return False
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # Register with coordinator using a unique ID format
+        self._coordinator.register_sensor(f"plug_{self._plug_sn}", self)
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._coordinator.unregister_sensor(f"plug_{self._plug_sn}")
+        await super().async_will_remove_from_hass()
+
+    def _update_from_coordinator(self, data: dict) -> None:
+        """Receive data from coordinator."""
+        plugs = data.get("plugs")
+        if not plugs or not isinstance(plugs, list):
+            return
+
+        # Find my plug data
+        my_plug = next((p for p in plugs if p.get("sn") == self._plug_sn), None)
+        if not my_plug:
+            return
+
+        # Update state (outPw)
+        try:
+            self._attr_native_value = float(my_plug.get("outPw", 0))
+            
+            # Update name if available and changed?
+            # name = my_plug.get("name")
+            # if name and name != self._attr_name:
+            #     self._attr_name = name # Changing name dynamically might be tricky for entity registry.
+            
+            self._attr_available = True
+            self.async_write_ha_state()
+        except (TypeError, ValueError):
+            pass
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "plug_sn": self._plug_sn
         }
