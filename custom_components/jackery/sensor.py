@@ -672,16 +672,8 @@ class JackeryDataCoordinator:
             data["calc_batt_net_power"] = p_batt
             data["calc_battery_charge_power"] = max(0.0, p_batt)
             data["calc_battery_discharge_power"] = max(0.0, -p_batt)
-            data["calc_grid_net_power"] = p_grid if p_grid is not None else 0 # Return 0 if None for sensor safety? 
-            # Note: If p_grid is None, the sensor might show 0 or unavailable. 
-            # Ideally "Grid Net Power" sensor should be unavailable if no CT.
-            # But let's set it to 0 for now or handle in sensor.
-
-            # Additional: We might want to pass 'grid_available' to data for sensor state?
-            if p_grid is None:
-                # If we return None, the sensor logic below might error or show Unknown.
-                # Let's leave it as None in data, and handle in sensor update.
-                 data["calc_grid_net_power"] = None
+            data["grid_available"] = grid_available
+            data["calc_grid_net_power"] = p_grid if grid_available else None
 
         except Exception as e:
             _LOGGER.error(f"Error calculating energy flow: {e}")
@@ -861,6 +853,12 @@ class JackerySensor(SensorEntity):
             return
 
         value = data[json_key]
+
+        if self._sensor_id == "grid_net_power" and value is None:
+            # Keep last value when CT data is temporarily missing
+            self._attr_available = False
+            self.async_write_ha_state()
+            return
 
         # Process specific conversions
         if self._sensor_id == "battery_temperature":
