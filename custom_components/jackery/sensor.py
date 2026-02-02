@@ -856,8 +856,6 @@ class JackerySensor(SensorEntity):
 
         if self._sensor_id == "grid_net_power" and value is None:
             # Keep last value when CT data is temporarily missing
-            self._attr_available = False
-            self.async_write_ha_state()
             return
 
         # Process specific conversions
