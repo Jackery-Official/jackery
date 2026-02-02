@@ -267,6 +267,7 @@ class JackeryDataCoordinator:
 
         self._known_plugs = set() # Set of known plug SNs
         self.add_entities_callback = None # Callback to add new entities
+        self.add_switch_entities_callback = None # Callback to add new switch entities
         self._data_cache = {} # Cache for merged data from status and events
 
         # Topic patterns
@@ -436,6 +437,7 @@ class JackeryDataCoordinator:
             return
 
         new_entities = []
+        new_switch_entities = []
         for plug in plugs:
             # Check SN key (could be 'sn' or 'deviceSn')
             sn = plug.get("deviceSn") or plug.get("sn")
@@ -457,9 +459,88 @@ class JackeryDataCoordinator:
                         config_entry_id=self.config_entry_id
                     )
                     new_entities.append(entity)
+                    if dev_type != 2:
+                        from .switch import JackeryPlugSwitch
+                        switch_entity = JackeryPlugSwitch(
+                            plug_sn=sn,
+                            dev_type=dev_type,
+                            coordinator=self,
+                            config_entry_id=self.config_entry_id
+                        )
+                        new_switch_entities.append(switch_entity)
 
         if new_entities and self.add_entities_callback:
             self.add_entities_callback(new_entities)
+        if new_switch_entities and self.add_switch_entities_callback:
+            self.add_switch_entities_callback(new_switch_entities)
+
+    def get_subdevices(self) -> list[dict[str, Any]]:
+        """Return latest sub-device list from cache."""
+        plugs = self._data_cache.get("plugs") or self._data_cache.get("plug")
+        if isinstance(plugs, list):
+            return [p for p in plugs if isinstance(p, dict)]
+        cts = self._data_cache.get("cts")
+        if isinstance(cts, list):
+            return [p for p in cts if isinstance(p, dict)]
+        return []
+
+    async def async_control_subdevice_switch(self, plug_sn: str, dev_type: int, is_on: bool) -> None:
+        """Control sub-device switch via type 103."""
+        if not self._device_sn:
+            _LOGGER.warning("Cannot control sub-device: device SN not discovered")
+            return
+
+        action_topic = f"{self._topic_root}/device/{self._device_sn}/action"
+        ts = int(time.time())
+        payload = {
+            "type": 103,
+            "eventId": 0,
+            "messageId": random.randint(1000, 9999),
+            "ts": ts,
+            "body": {
+                "deviceSn": plug_sn,
+                "devType": dev_type,
+                "sysSwitch": 1 if is_on else 0,
+            },
+        }
+        if self._token:
+            payload["token"] = self._token
+
+        await ha_mqtt.async_publish(
+            self.hass,
+            action_topic,
+            json.dumps(payload),
+            0,
+            False
+        )
+
+    async def async_control_main_device(self, params: dict[str, Any]) -> None:
+        """Control main device via type 1, cmd 5."""
+        if not self._device_sn:
+            _LOGGER.warning("Cannot control main device: device SN not discovered")
+            return
+
+        action_topic = f"{self._topic_root}/device/{self._device_sn}/action"
+        ts = int(time.time())
+        body = {"cmd": 5, "rc": 1}
+        body.update(params)
+        payload = {
+            "type": 1,
+            "eventId": 3,
+            "messageId": random.randint(1000, 9999),
+            "ts": ts,
+            "body": body,
+        }
+        if self._token:
+            payload["token"] = self._token
+
+        await ha_mqtt.async_publish(
+            self.hass,
+            action_topic,
+            json.dumps(payload),
+            0,
+            False
+        )
 
     def _calculate_energy_flow(self, data: dict) -> dict:
         """
@@ -895,6 +976,12 @@ class JackeryPlugSensor(SensorEntity):
             "commState": raw.get("commState"),
             "funForm": raw.get("funForm"),
             "schePhase": raw.get("schePhase"),
+            # Plug fields
+            "inPw": raw.get("inPw"),
+            "outPw": raw.get("outPw"),
+            "sysSwitch": raw.get("sysSwitch") if raw.get("sysSwitch") is not None else raw.get("switchSta"),
+            "socketPri": raw.get("socketPri"),
+            "totalEgy": raw.get("totalEgy"),
             "AphasePw": raw.get("AphasePw") or raw.get("aPhasePw"),
             "BphasePw": raw.get("BphasePw") or raw.get("bPhasePw"),
             "CphasePw": raw.get("CphasePw") or raw.get("cPhasePw"),
