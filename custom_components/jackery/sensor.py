@@ -588,8 +588,8 @@ class JackeryDataCoordinator:
                 # 检查通讯状态 (如果 commState 存在且为 0 可能表示离线，视具体协议而定，这里暂定只要有数据即可)
                 # TphasePw: 总正向有功 (Grid Buy)
                 # TnphasePw: 总负向有功 (Grid Sell)
-                t_phase_pw = ct_data.get("TphasePw")
-                tn_phase_pw = ct_data.get("TnphasePw")
+                t_phase_pw = ct_data.get("TphasePw") or ct_data.get("tPhasePw")
+                tn_phase_pw = ct_data.get("TnphasePw") or ct_data.get("tnPhasePw")
                 
                 if t_phase_pw is not None and tn_phase_pw is not None:
                     grid_buy = float(t_phase_pw)
