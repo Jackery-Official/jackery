@@ -546,44 +546,50 @@ class JackeryDataCoordinator:
                 ts = int(time.time())
                 
                 # 1. Poll Device Status (Type 25)
-                payload_25 = {
-                    "type": 25,
-                    "eventId": 0,
-                    "messageId": random.randint(1000, 9999),
-                    "ts": ts,
-                    "token": self._token,
-                    "body": None
-                }
-                
-                await ha_mqtt.async_publish(
-                    self.hass,
-                    action_topic,
-                    json.dumps(payload_25),
-                    0,
-                    False
-                )
-                
-                # 2. Poll Sub-devices (Type 100) - CTs (2) and Plugs (6)
-                for dev_type in [2, 6]:
-                    payload_100 = {
-                        "type": 100,
+                try:
+                    payload_25 = {
+                        "type": 25,
                         "eventId": 0,
                         "messageId": random.randint(1000, 9999),
                         "ts": ts,
                         "token": self._token,
-                        "body": {
-                            "devType": dev_type
-                        }
+                        "body": None
                     }
-                    
+
                     await ha_mqtt.async_publish(
                         self.hass,
                         action_topic,
-                        json.dumps(payload_100),
+                        json.dumps(payload_25),
                         0,
                         False
                     )
-                    await asyncio.sleep(0.5) # Avoid spamming too fast
+                except Exception as e:
+                    _LOGGER.warning(f"Error polling device status (Type 25): {e}")
+
+                # 2. Poll Sub-devices (Type 100) - CTs (2) and Plugs (6)
+                try:
+                    for dev_type in [2, 6]:
+                        payload_100 = {
+                            "type": 100,
+                            "eventId": 0,
+                            "messageId": random.randint(1000, 9999),
+                            "ts": ts,
+                            "token": self._token,
+                            "body": {
+                                "devType": dev_type
+                            }
+                        }
+
+                        await ha_mqtt.async_publish(
+                            self.hass,
+                            action_topic,
+                            json.dumps(payload_100),
+                            0,
+                            False
+                        )
+                        await asyncio.sleep(0.5) # Avoid spamming too fast
+                except Exception as e:
+                    _LOGGER.warning(f"Error polling sub-devices (Type 100): {e}")
                 
                 _LOGGER.debug(f"Sent poll requests (25 & 100 [2,6]) to {action_topic}")
 
