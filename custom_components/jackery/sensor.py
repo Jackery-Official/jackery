@@ -934,7 +934,10 @@ class JackeryPlugSensor(SensorEntity):
 
     def _update_from_coordinator(self, data: dict) -> None:
         """Receive data from coordinator."""
-        plugs = data.get("plugs") or data.get("plug")
+        if self._dev_type == 2:
+            plugs = data.get("cts")
+        else:
+            plugs = data.get("plugs") or data.get("plug")
         if not plugs or not isinstance(plugs, list):
             return
 
@@ -946,13 +949,16 @@ class JackeryPlugSensor(SensorEntity):
         # Store full raw data for attributes
         self._raw_data = dict(my_plug)
 
-        # Update state (outPw)
+        # Update state (outPw / power)
         try:
-            # Try specific plug keys from protocol or generic 'outPw'
+            # Try specific keys from protocol
             # Protocol example: { "a": 12, ... } doesn't show power explicitly.
             # Assuming 'outPw' or similar exists, or maybe 'p' or 'power'.
             # Existing code used 'outPw'. Let's stick to it or add fallbacks if known.
-            val = my_plug.get("outPw")
+            if self._dev_type == 2:
+                val = my_plug.get("tPhasePw") or my_plug.get("TphasePw")
+            else:
+                val = my_plug.get("outPw")
             if val is None:
                  val = my_plug.get("power") # Common alternative
             
