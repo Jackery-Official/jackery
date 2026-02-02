@@ -365,34 +365,40 @@ class JackeryDataCoordinator:
                 # Merge logic
                 # Type 101: Sub-device full data
                 if msg_code == 101 and isinstance(body, dict):
-                    # Expect "plug": [ ... ]
-                    # Normalize to "plugs" and "cts" for internal usage
-                    raw_plugs = body.get("plug", [])
-                    if raw_plugs:
-                        # Separate CTs (devType=2?) and Plugs (others?)
-                        # User said CTs (2) and Plugs (6). Protocol example shows devType in item.
-                        
-                        # Update "plugs" list (containing all sub-devices or just plugs?)
-                        # Let's keep "plugs" as the raw list of all sub-devices for _check_for_new_plugs to scan
-                        # Or better, separate them now.
-                        
-                        current_cts = []
-                        current_plugs = []
-                        
+                    # Normalize sub-device payloads for plugs/sockets/CTs
+                    raw_plugs = body.get("plug") or body.get("plugs") or body.get("socket") or body.get("sockets") or []
+                    raw_cts = body.get("ct") or body.get("cts") or []
+
+                    current_cts = []
+                    current_plugs = []
+
+                    # Combine all sub-devices into a single list for discovery
+                    combined = []
+                    if isinstance(raw_plugs, list):
                         for item in raw_plugs:
+                            if isinstance(item, dict) and item.get("devType") is None:
+                                item = {**item, "devType": 6}
+                            combined.append(item)
+                    if isinstance(raw_cts, list):
+                        for item in raw_cts:
+                            if isinstance(item, dict) and item.get("devType") is None:
+                                item = {**item, "devType": 2}
+                            combined.append(item)
+
+                    if combined:
+                        for item in combined:
+                            if not isinstance(item, dict):
+                                continue
                             dt = item.get("devType")
-                            # Assuming devType 2 is CT based on "Poll Sub-devices ... CTs (2)"
                             if dt == 2:
-                                # Map keys for CT calculator: TphasePw -> gridBuy, TnphasePw -> gridSell ?
-                                # Or just pass item as is. _calculate_energy_flow expects item in "cts" list.
                                 current_cts.append(item)
                             else:
                                 current_plugs.append(item)
-                        
+
                         self._data_cache["cts"] = current_cts
-                        # We store all in "plugs" for JackeryPlugSensor to find itself by SN
-                        self._data_cache["plugs"] = raw_plugs 
-                        self._data_cache["plug"] = raw_plugs # Keep original key too
+                        # Store all in "plugs" for JackeryPlugSensor to find itself by SN
+                        self._data_cache["plugs"] = combined
+                        self._data_cache["plug"] = combined  # Keep original key too
 
                 # Type 25 or Status: Main device data
                 elif isinstance(body, dict):
@@ -420,6 +426,8 @@ class JackeryDataCoordinator:
         # Check both keys
         plugs = data.get("plugs") or data.get("plug")
         if not plugs or not isinstance(plugs, list):
+            plugs = data.get("cts") if isinstance(data.get("cts"), list) else None
+        if not plugs:
             return
 
         new_entities = []
