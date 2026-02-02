@@ -590,10 +590,25 @@ class JackeryDataCoordinator:
                 # TnphasePw: 总负向有功 (Grid Sell)
                 t_phase_pw = ct_data.get("TphasePw") or ct_data.get("tPhasePw")
                 tn_phase_pw = ct_data.get("TnphasePw") or ct_data.get("tnPhasePw")
-                
-                if t_phase_pw is not None and tn_phase_pw is not None:
+
+                # Fallback: if total phase missing, sum A/B/C
+                if t_phase_pw is None:
+                    a_pw = ct_data.get("AphasePw") or ct_data.get("aPhasePw") or 0
+                    b_pw = ct_data.get("BphasePw") or ct_data.get("bPhasePw") or 0
+                    c_pw = ct_data.get("CphasePw") or ct_data.get("cPhasePw") or 0
+                    if any(v is not None for v in [a_pw, b_pw, c_pw]):
+                        t_phase_pw = float(a_pw) + float(b_pw) + float(c_pw)
+
+                if tn_phase_pw is None:
+                    an_pw = ct_data.get("AnphasePw") or ct_data.get("anPhasePw") or 0
+                    bn_pw = ct_data.get("BnphasePw") or ct_data.get("bnPhasePw") or 0
+                    cn_pw = ct_data.get("CnphasePw") or ct_data.get("cnPhasePw") or 0
+                    if any(v is not None for v in [an_pw, bn_pw, cn_pw]):
+                        tn_phase_pw = float(an_pw) + float(bn_pw) + float(cn_pw)
+
+                if t_phase_pw is not None:
                     grid_buy = float(t_phase_pw)
-                    grid_sell = float(tn_phase_pw)
+                    grid_sell = float(tn_phase_pw or 0)
                     grid_available = True
             
             # 兼容旧逻辑或直接字段 (如果 cts 不存在)
