@@ -884,8 +884,31 @@ class JackeryPlugSensor(SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        raw = getattr(self, "_raw_data", None) or {}
         return {
             "plug_sn": self._plug_sn,
             "dev_type": self._dev_type,
-            "raw_data": getattr(self, "_raw_data", None)
+            "raw_data": raw,
+            # Normalized CT/plug fields (if present)
+            "sn": raw.get("sn") or raw.get("deviceSn"),
+            "name": raw.get("name") or raw.get("scanName"),
+            "commState": raw.get("commState"),
+            "funForm": raw.get("funForm"),
+            "schePhase": raw.get("schePhase"),
+            "AphasePw": raw.get("AphasePw") or raw.get("aPhasePw"),
+            "BphasePw": raw.get("BphasePw") or raw.get("bPhasePw"),
+            "CphasePw": raw.get("CphasePw") or raw.get("cPhasePw"),
+            "TphasePw": raw.get("TphasePw") or raw.get("tPhasePw"),
+            "AnphasePw": raw.get("AnphasePw") or raw.get("anPhasePw"),
+            "BnphasePw": raw.get("BnphasePw") or raw.get("bnPhasePw"),
+            "CnphasePw": raw.get("CnphasePw") or raw.get("cnPhasePw"),
+            "TnphasePw": raw.get("TnphasePw") or raw.get("tnPhasePw"),
+            "AphaseEgy": raw.get("AphaseEgy"),
+            "BphaseEgy": raw.get("BphaseEgy"),
+            "CphaseEgy": raw.get("CphaseEgy"),
+            "TphaseEgy": raw.get("TphaseEgy"),
+            "AnphaseEgy": raw.get("AnphaseEgy"),
+            "BnphaseEgy": raw.get("BnphaseEgy"),
+            "CnphaseEgy": raw.get("CnphaseEgy"),
+            "TnphaseEgy": raw.get("TnphaseEgy"),
         }
