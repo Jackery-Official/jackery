@@ -862,8 +862,8 @@ class JackeryPlugSensor(SensorEntity):
         if not my_plug:
             return
 
-        # Store raw data for attributes
-        self._raw_data = my_plug
+        # Store full raw data for attributes
+        self._raw_data = dict(my_plug)
 
         # Update state (outPw)
         try:
