@@ -606,8 +606,8 @@ class JackeryDataCoordinator:
                     if any(v is not None for v in [an_pw, bn_pw, cn_pw]):
                         tn_phase_pw = float(an_pw) + float(bn_pw) + float(cn_pw)
 
-                if t_phase_pw is not None:
-                    grid_buy = float(t_phase_pw)
+                if t_phase_pw is not None or tn_phase_pw is not None:
+                    grid_buy = float(t_phase_pw or 0)
                     grid_sell = float(tn_phase_pw or 0)
                     grid_available = True
             
