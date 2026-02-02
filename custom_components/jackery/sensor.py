@@ -381,8 +381,13 @@ class JackeryDataCoordinator:
                             combined.append(item)
                     if isinstance(raw_cts, list):
                         for item in raw_cts:
-                            if isinstance(item, dict) and item.get("devType") is None:
-                                item = {**item, "devType": 2}
+                            if isinstance(item, dict):
+                                # Some CT payloads report devType=3, subType=2; normalize to devType=2
+                                sub_type = item.get("subType")
+                                if sub_type == 2:
+                                    item = {**item, "devType": 2}
+                                elif item.get("devType") is None:
+                                    item = {**item, "devType": 2}
                             combined.append(item)
 
                     if combined:
@@ -435,6 +440,8 @@ class JackeryDataCoordinator:
             # Check SN key (could be 'sn' or 'deviceSn')
             sn = plug.get("deviceSn") or plug.get("sn")
             dev_type = plug.get("devType")
+            if dev_type is None and plug.get("subType") == 2:
+                dev_type = 2
             
             # _LOGGER.debug(f"Checking sub-device: SN={sn}, Type={dev_type}")
 
