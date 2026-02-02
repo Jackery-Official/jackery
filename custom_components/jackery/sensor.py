@@ -428,18 +428,16 @@ class JackeryDataCoordinator:
             sn = plug.get("deviceSn") or plug.get("sn")
             dev_type = plug.get("devType")
             
-            # Filter out CTs (devType 2) if we only want plugs here? 
-            # JackeryPlugSensor implies "Plug". CTs are usually main sensors.
-            if dev_type == 2:
-                continue
+            # _LOGGER.debug(f"Checking sub-device: SN={sn}, Type={dev_type}")
 
             if sn and sn not in self._known_plugs:
-                _LOGGER.info(f"Discovered new plug: {sn} (Type: {dev_type})")
+                _LOGGER.info(f"Discovered new sub-device: {sn} (Type: {dev_type})")
                 self._known_plugs.add(sn)
                 
                 if hasattr(self, "config_entry_id"):
                     entity = JackeryPlugSensor(
                         plug_sn=sn,
+                        dev_type=dev_type,
                         coordinator=self,
                         config_entry_id=self.config_entry_id
                     )
@@ -787,34 +785,42 @@ class JackerySensor(SensorEntity):
 
 
 class JackeryPlugSensor(SensorEntity):
-    """Jackery Smart Plug Sensor."""
+    """Jackery Smart Plug / CT Sensor."""
 
     def __init__(
         self,
         plug_sn: str,
+        dev_type: int,
         coordinator: JackeryDataCoordinator,
         config_entry_id: str,
     ) -> None:
         """Initialize."""
         self._plug_sn = plug_sn
+        self._dev_type = dev_type
         self._coordinator = coordinator
         
-        self._attr_name = f"Plug {plug_sn} Power"
+        # Determine Name and Icon based on Type
+        if self._dev_type == 2:
+            device_name = "CT"
+            icon = "mdi:current-ac"
+        else:
+            device_name = "Plug"
+            icon = "mdi:power-socket-eu"
+
+        self._attr_name = f"{device_name} {plug_sn} Power"
         self._attr_native_unit_of_measurement = UnitOfPower.WATT
-        self._attr_icon = "mdi:power-socket-eu"
+        self._attr_icon = icon
         self._attr_device_class = SensorDeviceClass.POWER
         self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._attr_unique_id = f"jackery_plug_{plug_sn}_power"
+        self._attr_unique_id = f"jackery_{device_name.lower()}_{plug_sn}_power"
         self._attr_has_entity_name = True
 
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, f"plug_{plug_sn}")}, # Unique identifier for this plug device? Or attach to main?
-            # Ideally attach to main device if it's a sub-device, but having separate device in HA is also fine.
-            # Let's attach to the main Jackery device for simplicity.
-            "identifiers": {(DOMAIN, config_entry_id)},
-            "name": "Jackery",
+            "identifiers": {(DOMAIN, f"sub_{plug_sn}")}, 
+            "via_device": (DOMAIN, config_entry_id),
+            "name": f"Jackery {device_name} {plug_sn}",
             "manufacturer": "Jackery",
-            "model": "Energy Monitor",
+            "model": f"Sub-device Type {dev_type}",
         }
 
     @property
@@ -841,6 +847,9 @@ class JackeryPlugSensor(SensorEntity):
         if not my_plug:
             return
 
+        # Store raw data for attributes
+        self._raw_data = my_plug
+
         # Update state (outPw)
         try:
             # Try specific plug keys from protocol or generic 'outPw'
@@ -861,5 +870,7 @@ class JackeryPlugSensor(SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         return {
-            "plug_sn": self._plug_sn
+            "plug_sn": self._plug_sn,
+            "dev_type": self._dev_type,
+            "raw_data": getattr(self, "_raw_data", None)
         }
