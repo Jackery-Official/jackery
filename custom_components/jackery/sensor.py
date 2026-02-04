@@ -394,20 +394,19 @@ class JackeryDataCoordinator:
                                     item = {**item, "devType": 2}
                             combined.append(item)
 
-                    if combined:
-                        for item in combined:
-                            if not isinstance(item, dict):
-                                continue
-                            dt = item.get("devType")
-                            if dt == 2:
-                                current_cts.append(item)
-                            else:
-                                current_plugs.append(item)
+                    for item in combined:
+                        if not isinstance(item, dict):
+                            continue
+                        dt = item.get("devType")
+                        if dt == 2:
+                            current_cts.append(item)
+                        else:
+                            current_plugs.append(item)
 
-                        self._data_cache["cts"] = current_cts
-                        # Store all in "plugs" for JackeryPlugSensor to find itself by SN
-                        self._data_cache["plugs"] = combined
-                        self._data_cache["plug"] = combined  # Keep original key too
+                    self._data_cache["cts"] = current_cts
+                    # Store all in "plugs" for JackeryPlugSensor to find itself by SN
+                    self._data_cache["plugs"] = combined
+                    self._data_cache["plug"] = combined  # Keep original key too
 
                 # Type 25 or Status: Main device data
                 elif isinstance(body, dict):
