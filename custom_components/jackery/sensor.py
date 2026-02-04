@@ -430,14 +430,36 @@ class JackeryDataCoordinator:
             _LOGGER.error(f"Error handling message: {e}")
 
     def _check_for_new_plugs(self, data: dict) -> None:
-        """检查并添加新发现的插座."""
+        """检查并同步插座/CT（添加新设备，移除旧设备）."""
         # Check both keys
         plugs = data.get("plugs") or data.get("plug")
         if not plugs or not isinstance(plugs, list):
             plugs = data.get("cts") if isinstance(data.get("cts"), list) else None
-        if not plugs:
+        
+        # 如果数据中根本没有 plugs/cts 字段，不做处理（避免在 Type 25 消息中误删）
+        if plugs is None:
             return
 
+        current_sns = set()
+        for plug in plugs:
+            sn = plug.get("deviceSn") or plug.get("sn")
+            if sn:
+                current_sns.add(sn)
+
+        # 1. 处理移除 (Known - Current)
+        removed_sns = self._known_plugs - current_sns
+        for sn in removed_sns:
+            _LOGGER.info(f"Sub-device removed: {sn}")
+            self._known_plugs.remove(sn)
+            
+            # 查找并删除相关实体
+            keys_to_remove = []
+            for sensor_id, entity in list(self._sensors.items()):
+                if sensor_id == f"plug_{sn}" or sensor_id == f"plug_switch_{sn}":
+                    keys_to_remove.append(sensor_id)
+                    self.hass.async_create_task(entity.async_remove(force_remove=True))
+
+        # 2. 处理新增
         new_entities = []
         new_switch_entities = []
         for plug in plugs:
