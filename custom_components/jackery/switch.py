@@ -48,10 +48,6 @@ async def async_setup_entry(
                 coordinator=coordinator,
                 config_entry_id=config_entry.entry_id,
             ),
-            JackeryRebootSwitch(
-                coordinator=coordinator,
-                config_entry_id=config_entry.entry_id,
-            ),
         ]
     )
 
@@ -207,50 +203,3 @@ class JackeryMainSwitch(SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self._coordinator.async_control_main_device({self._key: 0})
-
-
-class JackeryRebootSwitch(SwitchEntity):
-    """Main device reboot switch (momentary)."""
-
-    def __init__(
-        self,
-        coordinator: "JackeryDataCoordinator",
-        config_entry_id: str,
-    ) -> None:
-        self._coordinator = coordinator
-        self._attr_name = "Reboot"
-        self._attr_unique_id = "jackery_main_reboot"
-        self._attr_has_entity_name = True
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, config_entry_id)},
-            "name": "Jackery",
-            "manufacturer": "Jackery",
-            "model": "Energy Monitor",
-        }
-
-    @property
-    def should_poll(self) -> bool:
-        return False
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        self._coordinator.register_sensor("main_switch_reboot", self)
-
-    async def async_will_remove_from_hass(self) -> None:
-        self._coordinator.unregister_sensor("main_switch_reboot")
-        await super().async_will_remove_from_hass()
-
-    def _update_from_coordinator(self, data: dict) -> None:
-        # Reboot doesn't have stable state; keep off unless explicitly set
-        self._attr_is_on = False
-        self._attr_available = True
-        self.async_write_ha_state()
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        await self._coordinator.async_control_main_device({"reboot": 1})
-        self._attr_is_on = False
-        self.async_write_ha_state()
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        self._attr_is_on = False
-        self.async_write_ha_state()
