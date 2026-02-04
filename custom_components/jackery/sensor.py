@@ -1285,14 +1285,32 @@ class JackerySubDeviceSensor(SensorEntity):
              if target_key == "outPw":
                  val = my_plug.get("power")
              elif target_key == "TphasePw":
-                 # Fallback sum calculation handled in coordinator usually, but check here too?
-                 # Coordinator _calculate_energy_flow handles TphasePw calculation and puts it in 'cts' dict? 
-                 # No, _calculate_energy_flow modifies the MAIN data dict, not the individual items inside "cts" list usually.
-                 # Wait, looking at _calculate_energy_flow: it iterates "cts" from data.get("cts"), calculates and modifies... 
-                 # actually it EXTRACTS values to local vars but doesn't explicitly write back to the list item unless I missed it.
-                 # Let's check _calculate_energy_flow again. It reads from `ct_data = cts[0]`. It does NOT modify the list items.
-                 # So fallback logic here is good.
-                 pass
+                 # Accept alternate key casing and sum phase powers if needed
+                 val = my_plug.get("tPhasePw")
+                 if val is None:
+                     a_pw = my_plug.get("AphasePw") or my_plug.get("aPhasePw") or 0
+                     b_pw = my_plug.get("BphasePw") or my_plug.get("bPhasePw") or 0
+                     c_pw = my_plug.get("CphasePw") or my_plug.get("cPhasePw") or 0
+                     if any(v is not None for v in [a_pw, b_pw, c_pw]):
+                         val = float(a_pw) + float(b_pw) + float(c_pw)
+             elif target_key == "TphaseEgy":
+                 # Total forward active energy
+                 val = my_plug.get("tPhaseEgy")
+                 if val is None:
+                     a_egy = my_plug.get("AphaseEgy") or my_plug.get("aPhaseEgy") or 0
+                     b_egy = my_plug.get("BphaseEgy") or my_plug.get("bPhaseEgy") or 0
+                     c_egy = my_plug.get("CphaseEgy") or my_plug.get("cPhaseEgy") or 0
+                     if any(v is not None for v in [a_egy, b_egy, c_egy]):
+                         val = float(a_egy) + float(b_egy) + float(c_egy)
+             elif target_key == "TnphaseEgy":
+                 # Total reverse active energy
+                 val = my_plug.get("tnPhaseEgy")
+                 if val is None:
+                     an_egy = my_plug.get("AnphaseEgy") or my_plug.get("anPhaseEgy") or 0
+                     bn_egy = my_plug.get("BnphaseEgy") or my_plug.get("bnPhaseEgy") or 0
+                     cn_egy = my_plug.get("CnphaseEgy") or my_plug.get("cnPhaseEgy") or 0
+                     if any(v is not None for v in [an_egy, bn_egy, cn_egy]):
+                         val = float(an_egy) + float(bn_egy) + float(cn_egy)
         
         if val is not None:
             try:
@@ -1324,4 +1342,7 @@ class JackerySubDeviceSensor(SensorEntity):
             "TphasePw": raw.get("TphasePw"),
             "TphaseEgy": raw.get("TphaseEgy"),
             "TnphaseEgy": raw.get("TnphaseEgy"),
+            "tPhasePw": raw.get("tPhasePw"),
+            "tPhaseEgy": raw.get("tPhaseEgy"),
+            "tnPhaseEgy": raw.get("tnPhaseEgy"),
         }
