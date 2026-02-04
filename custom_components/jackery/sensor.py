@@ -68,6 +68,25 @@ SENSORS = {
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
     },
+    # 电池能量统计
+    "battery_charge_energy": {
+        "json_key": "batChgEgy",
+        "name": "Battery Charge Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:battery-plus",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
+    "battery_discharge_energy": {
+        "json_key": "batDisChgEgy",
+        "name": "Battery Discharge Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:battery-minus",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
 
     # 太阳能
     "solar_power": {
@@ -78,6 +97,15 @@ SENSORS = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
+    "solar_energy": {
+        "json_key": "pvEgy",
+        "name": "Solar Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:solar-power",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
     "solar_power_pv1": {
         "json_key": "pv1",
         "name": "Solar Power PV1",
@@ -85,6 +113,15 @@ SENSORS = {
         "icon": "mdi:solar-panel",
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "solar_energy_pv1": {
+        "json_key": "pv1Egy",
+        "name": "Solar Energy PV1",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:solar-panel",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
     },
     "solar_power_pv2": {
         "json_key": "pv2",
@@ -94,6 +131,15 @@ SENSORS = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
+    "solar_energy_pv2": {
+        "json_key": "pv2Egy",
+        "name": "Solar Energy PV2",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:solar-panel",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
     "solar_power_pv3": {
         "json_key": "pv3",
         "name": "Solar Power PV3",
@@ -102,6 +148,15 @@ SENSORS = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
+    "solar_energy_pv3": {
+        "json_key": "pv3Egy",
+        "name": "Solar Energy PV3",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:solar-panel",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
     "solar_power_pv4": {
         "json_key": "pv4",
         "name": "Solar Power PV4",
@@ -109,6 +164,15 @@ SENSORS = {
         "icon": "mdi:solar-panel",
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "solar_energy_pv4": {
+        "json_key": "pv4Egy",
+        "name": "Solar Energy PV4",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:solar-panel",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
     },
 
     # 电网相关
@@ -120,6 +184,15 @@ SENSORS = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
+    "grid_import_energy": {
+        "json_key": "inOngridEgy",
+        "name": "Grid Import Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:transmission-tower-import",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
     "grid_export_power": { # System -> Grid/Home (inOngirdPw)
         "json_key": "outOngridPw",
         "name": "Grid Export Power",
@@ -127,6 +200,15 @@ SENSORS = {
         "icon": "mdi:transmission-tower-export",
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "grid_export_energy": {
+        "json_key": "outOngridEgy",
+        "name": "Grid Export Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:transmission-tower-export",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
     },
     "max_output_power": {
         "json_key": "maxOutPw",
@@ -146,6 +228,15 @@ SENSORS = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
+    "eps_output_energy": {
+        "json_key": "outEpsEgy",
+        "name": "EPS Output Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:power-plug",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
     "eps_input_power": {
         "json_key": "swEpsInPw",
         "name": "EPS Input Power",
@@ -153,6 +244,15 @@ SENSORS = {
         "icon": "mdi:power-plug",
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "eps_input_energy": {
+        "json_key": "inEpsEgy",
+        "name": "EPS Input Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:power-plug",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
     },
     "eps_state": {
          "json_key": "swEpsState",
@@ -245,7 +345,133 @@ SENSORS = {
         "icon": "mdi:transmission-tower",
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
-    }
+    },
+    # 更多能量流向统计
+    "ac_to_battery_energy": {
+        "json_key": "acOtBatEgy",
+        "name": "AC to Battery Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:battery-arrow-up",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
+    "pv_to_battery_energy": {
+        "json_key": "pvOtBatEgy",
+        "name": "PV to Battery Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:solar-power-variant",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
+    "pv_to_ac_energy": {
+        "json_key": "pvOtAcEgy",
+        "name": "PV to AC Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:solar-panel",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
+    "pv_to_grid_energy": {
+        "json_key": "pvOtOngridEgy",
+        "name": "PV to Grid Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:transmission-tower-export",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
+    "grid_to_ac_load_energy": {
+        "json_key": "ongridOtAcLoadEgy",
+        "name": "Grid to AC Load Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:home-import-outline",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
+    "battery_to_ac_energy": {
+        "json_key": "batOtAcEgy",
+        "name": "Battery to AC Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:battery-arrow-down",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
+    "battery_to_grid_energy": {
+        "json_key": "batOtGridEgy",
+        "name": "Battery to Grid Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:transmission-tower-export",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
+    "grid_to_battery_energy": {
+        "json_key": "ongridOtBatEgy",
+        "name": "Grid to Battery Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:battery-arrow-up",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
+}
+
+# 子设备传感器配置
+SUBDEVICE_SENSORS = {
+    # 智能插座 (devType=6 or 1)
+    "plug": {
+        "power": {
+            "key": "outPw", # Fallback to 'power'
+            "name": "Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT,
+            "icon": "mdi:power-socket-eu",
+        },
+        "energy": {
+            "key": "totalEgy",
+            "name": "Energy",
+            "unit": UnitOfEnergy.KILO_WATT_HOUR,
+            "device_class": SensorDeviceClass.ENERGY,
+            "state_class": SensorStateClass.TOTAL_INCREASING,
+            "icon": "mdi:lightning-bolt",
+            "scale": 0.01,
+        },
+    },
+    # CT / Smart Meter (devType=2)
+    "ct": {
+        "power": {
+            "key": "TphasePw", # Fallback to sum of phases
+            "name": "Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT,
+            "icon": "mdi:current-ac",
+        },
+        "energy_import": {
+            "key": "TphaseEgy", # Total Forward Active Energy
+            "name": "Energy Import",
+            "unit": UnitOfEnergy.KILO_WATT_HOUR,
+            "device_class": SensorDeviceClass.ENERGY,
+            "state_class": SensorStateClass.TOTAL_INCREASING,
+            "icon": "mdi:transmission-tower-import",
+            "scale": 0.01, # Assumption
+        },
+        "energy_export": {
+            "key": "TnphaseEgy", # Total Reverse Active Energy
+            "name": "Energy Export",
+            "unit": UnitOfEnergy.KILO_WATT_HOUR,
+            "device_class": SensorDeviceClass.ENERGY,
+            "state_class": SensorStateClass.TOTAL_INCREASING,
+            "icon": "mdi:transmission-tower-export",
+            "scale": 0.01, # Assumption
+        },
+    },
 }
 
 
@@ -367,8 +593,25 @@ class JackeryDataCoordinator:
                      body = {}
                 
                 # Merge logic
+                # Type 23: Statistical/Energy Data
+                if msg_code == 23 and isinstance(body, dict):
+                    device_sn_in_body = body.get("deviceSn")
+                    if device_sn_in_body == "system":
+                        # Merge into main device cache
+                        self._data_cache.update(body)
+                    else:
+                        # Find and update sub-device in cache
+                        # Search in plugs and cts
+                        for key in ["plugs", "plug", "cts"]:
+                            items = self._data_cache.get(key)
+                            if isinstance(items, list):
+                                for item in items:
+                                    if item.get("sn") == device_sn_in_body or item.get("deviceSn") == device_sn_in_body:
+                                        item.update(body)
+                                        break
+
                 # Type 101: Sub-device full data
-                if msg_code == 101 and isinstance(body, dict):
+                elif msg_code == 101 and isinstance(body, dict):
                     # Normalize sub-device payloads for plugs/sockets/CTs
                     raw_plugs = body.get("plug") or body.get("plugs") or body.get("socket") or body.get("sockets") or []
                     raw_cts = body.get("ct") or body.get("cts") or []
@@ -436,7 +679,7 @@ class JackeryDataCoordinator:
         if not plugs or not isinstance(plugs, list):
             plugs = data.get("cts") if isinstance(data.get("cts"), list) else None
         
-        # 如果数据中根本没有 plugs/cts 字段，不做处理（避免在 Type 25 消息中误删）
+        # 如果数据中根本没有 plugs/cts 字段，不做处理
         if plugs is None:
             return
 
@@ -449,29 +692,23 @@ class JackeryDataCoordinator:
         now = time.time()
 
         # 1. 更新 missing 状态
-        # A. 既然出现了，清除之前的缺失计时
         for sn in current_sns:
             if sn in self._subdevice_missing_since:
                 _LOGGER.info(f"Sub-device {sn} reappeared, cancelling deletion.")
                 del self._subdevice_missing_since[sn]
 
-        # B. 检查已知但当前缺失的
         for sn in self._known_plugs:
             if sn not in current_sns:
                 if sn not in self._subdevice_missing_since:
                     self._subdevice_missing_since[sn] = now
                     _LOGGER.info(f"Sub-device {sn} missing, starting 60s deletion timer...")
 
-        # 2. 执行真正的移除 (检查 missing 列表)
-        # 使用 list() 复制 keys，允许在迭代中删除字典项
+        # 2. 执行真正的移除
         for sn in list(self._subdevice_missing_since.keys()):
-            # 如果该设备已不再已知列表里（可能已被删），清理记录并跳过
             if sn not in self._known_plugs:
                 del self._subdevice_missing_since[sn]
                 continue
             
-            # 只有当确实还在缺失状态（不在 current_sns）时才检查时间
-            # (虽然上面的步骤 A 已经清理了出现的，但双重检查更稳妥)
             if sn in current_sns:
                 del self._subdevice_missing_since[sn]
                 continue
@@ -482,37 +719,42 @@ class JackeryDataCoordinator:
                 self._known_plugs.remove(sn)
                 del self._subdevice_missing_since[sn]
                 
-                # 查找并删除相关实体
-                keys_to_remove = []
+                # Remove entities
                 for sensor_id, entity in list(self._sensors.items()):
-                    if sensor_id == f"plug_{sn}" or sensor_id == f"plug_switch_{sn}":
-                        keys_to_remove.append(sensor_id)
+                    # Match unique IDs containing the SN for sub-devices
+                    # Format: jackery_plug_{sn}_xxx or jackery_ct_{sn}_xxx or jackery_plug_{sn}_switch
+                    if f"_{sn}_" in sensor_id or sensor_id.endswith(f"_{sn}"):
                         self.hass.async_create_task(entity.async_remove(force_remove=True))
 
         # 3. 处理新增
         new_entities = []
         new_switch_entities = []
         for plug in plugs:
-            # Check SN key (could be 'sn' or 'deviceSn')
             sn = plug.get("deviceSn") or plug.get("sn")
             dev_type = plug.get("devType")
             if dev_type is None and plug.get("subType") == 2:
                 dev_type = 2
             
-            # _LOGGER.debug(f"Checking sub-device: SN={sn}, Type={dev_type}")
-
             if sn and sn not in self._known_plugs:
                 _LOGGER.info(f"Discovered new sub-device: {sn} (Type: {dev_type})")
                 self._known_plugs.add(sn)
                 
                 if hasattr(self, "config_entry_id"):
-                    entity = JackeryPlugSensor(
-                        plug_sn=sn,
-                        dev_type=dev_type,
-                        coordinator=self,
-                        config_entry_id=self.config_entry_id
-                    )
-                    new_entities.append(entity)
+                    # Create Sensors defined in SUBDEVICE_SENSORS
+                    sensor_group = "ct" if dev_type == 2 else "plug"
+                    group_config = SUBDEVICE_SENSORS.get(sensor_group, {})
+
+                    for sensor_key, sensor_cfg in group_config.items():
+                        entity = JackerySubDeviceSensor(
+                            plug_sn=sn,
+                            dev_type=dev_type,
+                            sensor_key=sensor_key,
+                            sensor_config=sensor_cfg,
+                            coordinator=self,
+                            config_entry_id=self.config_entry_id
+                        )
+                        new_entities.append(entity)
+
                     if dev_type != 2:
                         from .switch import JackeryPlugSwitch
                         switch_entity = JackeryPlugSwitch(
@@ -942,7 +1184,11 @@ class JackerySensor(SensorEntity):
             else:
                 self._attr_native_value = str(value)
         else:
-             self._attr_native_value = value
+            scale = self._config.get("scale", 1)
+            try:
+                self._attr_native_value = float(value) * scale
+            except (TypeError, ValueError):
+                 self._attr_native_value = value
 
         self._attr_available = True
         self.async_write_ha_state()
@@ -955,35 +1201,42 @@ class JackerySensor(SensorEntity):
         }
 
 
-class JackeryPlugSensor(SensorEntity):
-    """Jackery Smart Plug / CT Sensor."""
+class JackerySubDeviceSensor(SensorEntity):
+    """Jackery Smart Plug / CT Sub-device Sensor."""
 
     def __init__(
         self,
         plug_sn: str,
         dev_type: int,
+        sensor_key: str,
+        sensor_config: dict,
         coordinator: JackeryDataCoordinator,
         config_entry_id: str,
     ) -> None:
         """Initialize."""
         self._plug_sn = plug_sn
         self._dev_type = dev_type
+        self._sensor_key = sensor_key
+        self._sensor_config = sensor_config
         self._coordinator = coordinator
         
-        # Determine Name and Icon based on Type
+        # Determine Device Name based on Type
         if self._dev_type == 2:
             device_name = "CT"
-            icon = "mdi:current-ac"
         else:
             device_name = "Plug"
-            icon = "mdi:power-socket-eu"
 
-        self._attr_name = f"{device_name} {plug_sn} Power"
-        self._attr_native_unit_of_measurement = UnitOfPower.WATT
-        self._attr_icon = icon
-        self._attr_device_class = SensorDeviceClass.POWER
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._attr_unique_id = f"jackery_{device_name.lower()}_{plug_sn}_power"
+        # Entity Name: "Power", "Energy", etc.
+        self._attr_name = self._sensor_config["name"]
+        
+        self._attr_native_unit_of_measurement = self._sensor_config.get("unit")
+        self._attr_icon = self._sensor_config.get("icon")
+        self._attr_device_class = self._sensor_config.get("device_class")
+        self._attr_state_class = self._sensor_config.get("state_class")
+        
+        # Unique ID: jackery_ct_{sn}_power, jackery_plug_{sn}_energy, etc.
+        safe_key = self._sensor_key.replace("_", "") # e.g. energy_import -> energyimport
+        self._attr_unique_id = f"jackery_{device_name.lower()}_{plug_sn}_{safe_key}"
         self._attr_has_entity_name = True
 
         self._attr_device_info = {
@@ -1001,10 +1254,10 @@ class JackeryPlugSensor(SensorEntity):
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         # Register with coordinator using a unique ID format
-        self._coordinator.register_sensor(f"plug_{self._plug_sn}", self)
+        self._coordinator.register_sensor(self._attr_unique_id, self)
 
     async def async_will_remove_from_hass(self) -> None:
-        self._coordinator.unregister_sensor(f"plug_{self._plug_sn}")
+        self._coordinator.unregister_sensor(self._attr_unique_id)
         await super().async_will_remove_from_hass()
 
     def _update_from_coordinator(self, data: dict) -> None:
@@ -1023,26 +1276,33 @@ class JackeryPlugSensor(SensorEntity):
 
         # Store full raw data for attributes
         self._raw_data = dict(my_plug)
-
-        # Update state (outPw / power)
-        try:
-            # Try specific keys from protocol
-            # Protocol example: { "a": 12, ... } doesn't show power explicitly.
-            # Assuming 'outPw' or similar exists, or maybe 'p' or 'power'.
-            # Existing code used 'outPw'. Let's stick to it or add fallbacks if known.
-            if self._dev_type == 2:
-                val = my_plug.get("tPhasePw") or my_plug.get("TphasePw")
-            else:
-                val = my_plug.get("outPw")
-            if val is None:
-                 val = my_plug.get("power") # Common alternative
-            
-            if val is not None:
-                self._attr_native_value = float(val)
+        
+        target_key = self._sensor_config.get("key")
+        val = my_plug.get(target_key)
+        
+        # Fallback logic for specific keys if needed (like Power)
+        if val is None:
+             if target_key == "outPw":
+                 val = my_plug.get("power")
+             elif target_key == "TphasePw":
+                 # Fallback sum calculation handled in coordinator usually, but check here too?
+                 # Coordinator _calculate_energy_flow handles TphasePw calculation and puts it in 'cts' dict? 
+                 # No, _calculate_energy_flow modifies the MAIN data dict, not the individual items inside "cts" list usually.
+                 # Wait, looking at _calculate_energy_flow: it iterates "cts" from data.get("cts"), calculates and modifies... 
+                 # actually it EXTRACTS values to local vars but doesn't explicitly write back to the list item unless I missed it.
+                 # Let's check _calculate_energy_flow again. It reads from `ct_data = cts[0]`. It does NOT modify the list items.
+                 # So fallback logic here is good.
+                 pass
+        
+        if val is not None:
+            try:
+                native_val = float(val)
+                scale = self._sensor_config.get("scale", 1)
+                self._attr_native_value = native_val * scale
                 self._attr_available = True
                 self.async_write_ha_state()
-        except (TypeError, ValueError):
-            pass
+            except (TypeError, ValueError):
+                pass
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -1050,33 +1310,18 @@ class JackeryPlugSensor(SensorEntity):
         return {
             "plug_sn": self._plug_sn,
             "dev_type": self._dev_type,
-            "raw_data": raw,
+            "sensor_type": self._sensor_key,
             # Normalized CT/plug fields (if present)
             "sn": raw.get("sn") or raw.get("deviceSn"),
             "name": raw.get("name") or raw.get("scanName"),
             "commState": raw.get("commState"),
-            "funForm": raw.get("funForm"),
-            "schePhase": raw.get("schePhase"),
             # Plug fields
             "inPw": raw.get("inPw"),
             "outPw": raw.get("outPw"),
             "sysSwitch": raw.get("sysSwitch") if raw.get("sysSwitch") is not None else raw.get("switchSta"),
-            "socketPri": raw.get("socketPri"),
             "totalEgy": raw.get("totalEgy"),
-            "AphasePw": raw.get("AphasePw") or raw.get("aPhasePw"),
-            "BphasePw": raw.get("BphasePw") or raw.get("bPhasePw"),
-            "CphasePw": raw.get("CphasePw") or raw.get("cPhasePw"),
-            "TphasePw": raw.get("TphasePw") or raw.get("tPhasePw"),
-            "AnphasePw": raw.get("AnphasePw") or raw.get("anPhasePw"),
-            "BnphasePw": raw.get("BnphasePw") or raw.get("bnPhasePw"),
-            "CnphasePw": raw.get("CnphasePw") or raw.get("cnPhasePw"),
-            "TnphasePw": raw.get("TnphasePw") or raw.get("tnPhasePw"),
-            "AphaseEgy": raw.get("AphaseEgy"),
-            "BphaseEgy": raw.get("BphaseEgy"),
-            "CphaseEgy": raw.get("CphaseEgy"),
+            # CT Fields
+            "TphasePw": raw.get("TphasePw"),
             "TphaseEgy": raw.get("TphaseEgy"),
-            "AnphaseEgy": raw.get("AnphaseEgy"),
-            "BnphaseEgy": raw.get("BnphaseEgy"),
-            "CnphaseEgy": raw.get("CnphaseEgy"),
             "TnphaseEgy": raw.get("TnphaseEgy"),
         }

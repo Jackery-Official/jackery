@@ -87,7 +87,7 @@ class JackeryPlugSwitch(SwitchEntity):
         self._coordinator = coordinator
         self._raw_data = {}
 
-        self._attr_name = f"Plug {plug_sn} Switch"
+        self._attr_name = "Switch"
         self._attr_unique_id = f"jackery_plug_{plug_sn}_switch"
         self._attr_has_entity_name = True
 
