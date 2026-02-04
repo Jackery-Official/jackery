@@ -267,6 +267,7 @@ class JackeryDataCoordinator:
         self._last_update_time = time.time()
 
         self._known_plugs = set() # Set of known plug SNs
+        self._subdevice_missing_since = {} # {sn: timestamp} for deletion delay
         self.add_entities_callback = None # Callback to add new entities
         self.add_switch_entities_callback = None # Callback to add new switch entities
         self._data_cache = {} # Cache for merged data from status and events
@@ -445,21 +446,51 @@ class JackeryDataCoordinator:
             sn = plug.get("deviceSn") or plug.get("sn")
             if sn:
                 current_sns.add(sn)
+        
+        now = time.time()
 
-        # 1. 处理移除 (Known - Current)
-        removed_sns = self._known_plugs - current_sns
-        for sn in removed_sns:
-            _LOGGER.info(f"Sub-device removed: {sn}")
-            self._known_plugs.remove(sn)
+        # 1. 更新 missing 状态
+        # A. 既然出现了，清除之前的缺失计时
+        for sn in current_sns:
+            if sn in self._subdevice_missing_since:
+                _LOGGER.info(f"Sub-device {sn} reappeared, cancelling deletion.")
+                del self._subdevice_missing_since[sn]
+
+        # B. 检查已知但当前缺失的
+        for sn in self._known_plugs:
+            if sn not in current_sns:
+                if sn not in self._subdevice_missing_since:
+                    self._subdevice_missing_since[sn] = now
+                    _LOGGER.info(f"Sub-device {sn} missing, starting 60s deletion timer...")
+
+        # 2. 执行真正的移除 (检查 missing 列表)
+        # 使用 list() 复制 keys，允许在迭代中删除字典项
+        for sn in list(self._subdevice_missing_since.keys()):
+            # 如果该设备已不再已知列表里（可能已被删），清理记录并跳过
+            if sn not in self._known_plugs:
+                del self._subdevice_missing_since[sn]
+                continue
             
-            # 查找并删除相关实体
-            keys_to_remove = []
-            for sensor_id, entity in list(self._sensors.items()):
-                if sensor_id == f"plug_{sn}" or sensor_id == f"plug_switch_{sn}":
-                    keys_to_remove.append(sensor_id)
-                    self.hass.async_create_task(entity.async_remove(force_remove=True))
+            # 只有当确实还在缺失状态（不在 current_sns）时才检查时间
+            # (虽然上面的步骤 A 已经清理了出现的，但双重检查更稳妥)
+            if sn in current_sns:
+                del self._subdevice_missing_since[sn]
+                continue
 
-        # 2. 处理新增
+            missing_time = self._subdevice_missing_since[sn]
+            if now - missing_time > 60:
+                _LOGGER.info(f"Sub-device {sn} missing for >60s. Removing.")
+                self._known_plugs.remove(sn)
+                del self._subdevice_missing_since[sn]
+                
+                # 查找并删除相关实体
+                keys_to_remove = []
+                for sensor_id, entity in list(self._sensors.items()):
+                    if sensor_id == f"plug_{sn}" or sensor_id == f"plug_switch_{sn}":
+                        keys_to_remove.append(sensor_id)
+                        self.hass.async_create_task(entity.async_remove(force_remove=True))
+
+        # 3. 处理新增
         new_entities = []
         new_switch_entities = []
         for plug in plugs:
