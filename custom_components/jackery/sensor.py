@@ -446,29 +446,20 @@ SUBDEVICE_SENSORS = {
     # CT / Smart Meter (devType=2)
     "ct": {
         "power": {
-            "key": "TphasePw", # Fallback to sum of phases
+            "key": "phasePw", # Resolve by subType to A/B/C/Total
             "name": "Power",
             "unit": UnitOfPower.WATT,
             "device_class": SensorDeviceClass.POWER,
             "state_class": SensorStateClass.MEASUREMENT,
             "icon": "mdi:current-ac",
         },
-        "energy_import": {
-            "key": "TphaseEgy", # Total Forward Active Energy
-            "name": "Energy Import",
+        "energy": {
+            "key": "phaseEgy", # Resolve by subType to A/B/C/Total
+            "name": "Energy",
             "unit": UnitOfEnergy.KILO_WATT_HOUR,
             "device_class": SensorDeviceClass.ENERGY,
             "state_class": SensorStateClass.TOTAL_INCREASING,
-            "icon": "mdi:transmission-tower-import",
-            "scale": 0.01, # Assumption
-        },
-        "energy_export": {
-            "key": "TnphaseEgy", # Total Reverse Active Energy
-            "name": "Energy Export",
-            "unit": UnitOfEnergy.KILO_WATT_HOUR,
-            "device_class": SensorDeviceClass.ENERGY,
-            "state_class": SensorStateClass.TOTAL_INCREASING,
-            "icon": "mdi:transmission-tower-export",
+            "icon": "mdi:lightning-bolt",
             "scale": 0.01, # Assumption
         },
     },
@@ -1279,6 +1270,50 @@ class JackerySubDeviceSensor(SensorEntity):
         
         target_key = self._sensor_config.get("key")
         val = my_plug.get(target_key)
+
+        # CT phase mapping by subType (1=A, 2=B, 3=C, 4=Total)
+        if self._dev_type == 2 and target_key in {"phasePw", "phaseEgy"}:
+            sub_type = my_plug.get("subType")
+            if target_key == "phasePw":
+                if sub_type == 1:
+                    val = my_plug.get("AphasePw") or my_plug.get("aPhasePw")
+                elif sub_type == 2:
+                    val = my_plug.get("BphasePw") or my_plug.get("bPhasePw")
+                elif sub_type == 3:
+                    # C 相（单相：A+B 路）
+                    val = my_plug.get("CphasePw") or my_plug.get("cPhasePw")
+                    if not val:
+                        a_pw = my_plug.get("AphasePw") or my_plug.get("aPhasePw") or 0
+                        b_pw = my_plug.get("BphasePw") or my_plug.get("bPhasePw") or 0
+                        if any(v is not None for v in [a_pw, b_pw]):
+                            val = float(a_pw) + float(b_pw)
+                else:
+                    val = my_plug.get("TphasePw") or my_plug.get("tPhasePw")
+            else:
+                if sub_type == 1:
+                    val = my_plug.get("AphaseEgy") or my_plug.get("aPhaseEgy")
+                elif sub_type == 2:
+                    val = my_plug.get("BphaseEgy") or my_plug.get("bPhaseEgy")
+                elif sub_type == 3:
+                    # C 相（单相：A+B 路）
+                    val = my_plug.get("CphaseEgy") or my_plug.get("cPhaseEgy")
+                    if not val:
+                        a_egy = my_plug.get("AphaseEgy") or my_plug.get("aPhaseEgy") or 0
+                        b_egy = my_plug.get("BphaseEgy") or my_plug.get("bPhaseEgy") or 0
+                        if any(v is not None for v in [a_egy, b_egy]):
+                            val = float(a_egy) + float(b_egy)
+                else:
+                    val = my_plug.get("TphaseEgy") or my_plug.get("tPhaseEgy")
+                # If subtype energy is zero/None but total is non-zero, fall back to the single non-zero phase
+                if not val:
+                    total_egy = my_plug.get("TphaseEgy") or my_plug.get("tPhaseEgy")
+                    if total_egy:
+                        a_egy = my_plug.get("AphaseEgy") or my_plug.get("aPhaseEgy") or 0
+                        b_egy = my_plug.get("BphaseEgy") or my_plug.get("bPhaseEgy") or 0
+                        c_egy = my_plug.get("CphaseEgy") or my_plug.get("cPhaseEgy") or 0
+                        non_zero = [v for v in [a_egy, b_egy, c_egy] if v]
+                        if len(non_zero) == 1:
+                            val = non_zero[0]
         
         # Fallback logic for specific keys if needed (like Power)
         if val is None:
@@ -1329,6 +1364,7 @@ class JackerySubDeviceSensor(SensorEntity):
             "plug_sn": self._plug_sn,
             "dev_type": self._dev_type,
             "sensor_type": self._sensor_key,
+            "subType": raw.get("subType"),
             # Normalized CT/plug fields (if present)
             "sn": raw.get("sn") or raw.get("deviceSn"),
             "name": raw.get("name") or raw.get("scanName"),
