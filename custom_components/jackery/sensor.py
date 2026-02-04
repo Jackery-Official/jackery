@@ -264,6 +264,7 @@ class JackeryDataCoordinator:
         self._sensors = {}  # {sensor_id: entity}
         self._data_task = None
         self._subscribed = False
+        self._last_update_time = time.time()
 
         self._known_plugs = set() # Set of known plug SNs
         self.add_entities_callback = None # Callback to add new entities
@@ -331,6 +332,7 @@ class JackeryDataCoordinator:
 
     def _handle_message(self, msg) -> None:
         """处理接收到的 MQTT 消息."""
+        self._last_update_time = time.time()
         try:
             topic = msg.topic
             payload = msg.payload
@@ -685,6 +687,13 @@ class JackeryDataCoordinator:
         for sensor_id, entity in self._sensors.items():
             entity._update_from_coordinator(data)
 
+    def _mark_all_offline(self) -> None:
+        """Mark all entities as unavailable."""
+        for entity in self._sensors.values():
+            if entity.available:
+                entity._attr_available = False
+                entity.async_write_ha_state()
+
     async def _periodic_data_request(self) -> None:
         """定期发送 'type: 25' 和 'type: 100' 指令."""
         _LOGGER.info(f"Starting periodic data polling for {self._device_sn} via {self._mqtt_host}...")
@@ -692,6 +701,9 @@ class JackeryDataCoordinator:
 
         while True:
             try:
+                if time.time() - self._last_update_time > 60:
+                    self._mark_all_offline()
+
                 if not self._device_sn:
                     _LOGGER.debug("Waiting for device SN discovery...")
                     await asyncio.sleep(5)
