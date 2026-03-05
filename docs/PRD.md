@@ -49,47 +49,7 @@ Jackery（华宝新能）最新一代户用储能产品 **DIY3** 面向全球市
 
 ### 2.1 整体架构描述
 
-```mermaid
-graph TB
-    subgraph LAN["用户家庭局域网"]
-        subgraph HA["Home Assistant"]
-            MQTT_INT["MQTT 集成"]
-            HACS["Jackery HACS 集成"]
-            HACS --- MQTT_INT
-        end
-
-        BROKER["MQTT Broker\n(如 Mosquitto)"]
-
-        subgraph DIY3["Jackery DIY3 主机"]
-            CLIENT["MQTT Client\n(Token Auth)"]
-            subgraph SUB["子设备"]
-                CT["Smart CT ×1"]
-                PLUG["Smart Plug ×10"]
-            end
-            CLIENT --- CT
-            CLIENT --- PLUG
-        end
-
-        MQTT_INT -- "Subscribe\n(状态/事件主题)" --> BROKER
-        MQTT_INT -- "Publish\n(数据请求)" --> BROKER
-        CLIENT -- "Publish\n(状态/事件上报)" --> BROKER
-        CLIENT -- "Subscribe\n(指令主题)" --> BROKER
-        HACS -. "mDNS 设备发现" .-> DIY3
-    end
-
-    subgraph CLOUD["Jackery Cloud"]
-        APP["Jackery APP"]
-    end
-
-    DIY3 -- "Cloud 独立通道\n(互不干扰)" --> CLOUD
-
-    style LAN fill:#f0f8ff,stroke:#4a90d9,stroke-width:2px
-    style HA fill:#e8f5e9,stroke:#43a047,stroke-width:2px
-    style DIY3 fill:#fff8e1,stroke:#f9a825,stroke-width:2px
-    style CLOUD fill:#fce4ec,stroke:#e53935,stroke-width:2px
-    style SUB fill:#fff3e0,stroke:#ef6c00,stroke-width:1px
-    style BROKER fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-```
+![系统架构图](img/architecture.png)
 
 ### 2.2 前置条件（用户侧）
 
@@ -124,36 +84,7 @@ Jackery 集成采用 **MQTT 协议** 通信，设备与 HA 之间需要一个 **
 
 以下描述用户从零开始完成设备授权与集成配置的完整流程：
 
-```mermaid
-sequenceDiagram
-    actor User as 用户
-    participant APP as Jackery APP
-    participant Device as DIY3 设备
-    participant HA as Home Assistant
-
-    rect rgb(240, 248, 255)
-        Note over User, APP: 阶段一：APP 端授权
-        User->>APP: 1. 打开 APP，进入设备页
-        User->>APP: 2. 进入「HA 集成 / 本地访问」设置页
-        User->>APP: 3. 开启「MQTT / 本地访问」开关
-        User->>APP: 4. 输入 MQTT Broker 地址与端口
-        APP->>Device: 5. 下发指令：生成 Token，启用 MQTT
-        Device-->>APP: 确认：MQTT 已连接 Broker
-        APP-->>User: 6. 展示 Token 与设备 SN（支持复制）
-    end
-
-    rect rgb(232, 245, 233)
-        Note over User, HA: 阶段二：HA 端配置
-        User->>HA: 7. 添加 Jackery 集成
-        User->>HA: 8. 选择已发现设备（mDNS）或手动输入 SN
-        User->>HA: 9. 粘贴 Token
-        HA->>Device: 10. 通过 MQTT 订阅设备主题，验证连通性
-        Device-->>HA: 返回设备状态数据
-        HA-->>User: 11. 验证成功，自动创建设备与实体
-    end
-
-    Note over User, HA: ✅ 配置完成，数据开始流入 HA
-```
+![授权流程图](img/auth_flow.png)
 
 **授权流程分步说明：**
 
@@ -220,22 +151,7 @@ sequenceDiagram
 
 #### 5.1.1 流程设计
 
-```mermaid
-flowchart LR
-    A["添加集成"] --> B["设备发现\n(mDNS 列表\n或手动输入 SN)"]
-    B --> C["输入 Token\n(可选填主题前缀)"]
-    C --> D{"MQTT\n验证"}
-    D -- "成功" --> E["自动创建\n设备与实体"]
-    D -- "失败" --> F["显示错误提示\n(见 5.1.3)"]
-    F --> B
-
-    style A fill:#e3f2fd,stroke:#1565c0
-    style B fill:#e3f2fd,stroke:#1565c0
-    style C fill:#e3f2fd,stroke:#1565c0
-    style D fill:#fff8e1,stroke:#f9a825
-    style E fill:#e8f5e9,stroke:#43a047
-    style F fill:#fce4ec,stroke:#e53935
-```
+![Config Flow 流程图](img/config_flow.png)
 
 #### 5.1.2 Config Flow 步骤
 
@@ -344,34 +260,7 @@ HA 内置的 [Home Energy Management](https://www.home-assistant.io/docs/energy/
 
 #### 6.2.1 适配总览
 
-```mermaid
-flowchart TB
-    subgraph HA_ENERGY["HA Home Energy Management"]
-        GRID["Electricity Grid\n电网用电"]
-        SOLAR["Solar Panels\n太阳能"]
-        BATTERY["Home Batteries\n家庭电池"]
-        INDIVIDUAL["Individual Devices\n独立设备"]
-    end
-
-    subgraph JACKERY["Jackery 集成提供的实体"]
-        J_GRID_IN["grid_import_energy\n(购电量)"]
-        J_GRID_OUT["grid_export_energy\n(馈网量)"]
-        J_SOLAR["solar_energy\n(光伏发电量)"]
-        J_BAT_IN["battery_charge_energy\n(充电量)"]
-        J_BAT_OUT["battery_discharge_energy\n(放电量)"]
-        J_PLUG["Smart Plug load_energy\n(插座用电量)"]
-    end
-
-    J_GRID_IN --> GRID
-    J_GRID_OUT --> GRID
-    J_SOLAR --> SOLAR
-    J_BAT_IN --> BATTERY
-    J_BAT_OUT --> BATTERY
-    J_PLUG --> INDIVIDUAL
-
-    style HA_ENERGY fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    style JACKERY fill:#fff8e1,stroke:#f9a825,stroke-width:2px
-```
+![Energy 适配总览](img/energy_mapping.png)
 
 #### 6.2.2 Electricity Grid（电网用电）
 
