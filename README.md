@@ -52,7 +52,7 @@ Before the Jackery integration can receive any data, **two things must be in pla
    
    - Open HACS in Home Assistant
    - Click the three dots in the top-right → **Custom repositories**
-   - Add repository URL: `https://github.com/suyulin/jackery`
+   - Add repository URL: `https://github.com/ht-it-lab/jackery`
    - Category: `Integration`
    - Click **Add**
 2. **Install the integration**
