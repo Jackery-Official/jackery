@@ -298,7 +298,7 @@ SENSORS = {
     },
     "auto_standby_status": {
         "json_key": "autoStandby",
-        "name": "Auto Standby Status",
+        "name": "Auto Standby Mode",
         "unit": None,
         "icon": "mdi:power-sleep",
         "device_class": None,
@@ -644,8 +644,11 @@ class JackeryDataCoordinator:
 
                 # Type 25 or Status: Main device data
                 elif isinstance(body, dict):
-                    # Merge top-level keys
+                    # Merge top-level keys into cache to preserve fields not present in current message
                     self._data_cache.update(body)
+                    
+                    # Special handling for isAutoStandby/autoStandby to ensure they are always available if ever seen
+                    # (Optional: can add more critical fields here if needed)
 
             except json.JSONDecodeError:
                 _LOGGER.warning(f"Invalid JSON payload on {topic}")
@@ -900,8 +903,8 @@ class JackeryDataCoordinator:
             
             # 兼容旧逻辑或直接字段 (如果 cts 不存在)
             if not grid_available:
-                grid_buy_raw = data.get("gridBuyPw") # Hypothetical key
-                grid_sell_raw = data.get("gridSellPw") # Hypothetical key
+                grid_buy_raw = data.get("gridBuyPw") or data.get("gridInPw")
+                grid_sell_raw = data.get("gridSellPw") or data.get("gridOutPw")
                 if grid_buy_raw is not None and grid_sell_raw is not None:
                     grid_available = True
                     grid_buy = float(grid_buy_raw)
