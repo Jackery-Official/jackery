@@ -36,7 +36,7 @@ Before the Jackery integration can receive any data, **two things must be in pla
 2. **Device is configured from the Jackery app**
    
    - Use the vendor/Jackery mobile app to add the device/gateway and complete its initial setup.
-   - **⚠️ APP Version Requirement**: Jackery APP version must be greater than **2.10.18** to support this integration.
+   - **⚠️ APP Version Requirement**: Jackery APP version must be greater than **2.0.0** to support this integration.
    - Make sure the device has network access and is configured so that it can connect to your MQTT/cloud backend.
    - In the Jackery app, long-press the app logo to open the configuration screen.
    - In the Jackery app configuration, **replace the IP with the address of your own MQTT server**.
