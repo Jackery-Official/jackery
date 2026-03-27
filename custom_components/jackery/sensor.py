@@ -288,22 +288,22 @@ SENSORS = {
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    "is_auto_standby": {
-        "json_key": "isAutoStandby",
-        "name": "Auto Standby Allowed",
-        "unit": None,
-        "icon": "mdi:power-sleep",
-        "device_class": None,
-        "state_class": None, # 1-Allowed, 0-Not Allowed
-    },
-    "auto_standby_status": {
-        "json_key": "autoStandby",
-        "name": "Auto Standby Mode",
-        "unit": None,
-        "icon": "mdi:power-sleep",
-        "device_class": None,
-        "state_class": None, # 0-Invalid, 1-Sleep/Off, 2-On
-    },
+    # "is_auto_standby": {
+    #     "json_key": "isAutoStandby",
+    #     "name": "Auto Standby Allowed",
+    #     "unit": None,
+    #     "icon": "mdi:power-sleep",
+    #     "device_class": None,
+    #     "state_class": None, # 1-Allowed, 0-Not Allowed
+    # },
+    # "auto_standby_status": {
+    #     "json_key": "autoStandby",
+    #     "name": "Auto Standby Mode",
+    #     "unit": None,
+    #     "icon": "mdi:power-sleep",
+    #     "device_class": None,
+    #     "state_class": None, # 0-Invalid, 1-Sleep/Off, 2-On
+    # },
     
     # Calculated Sensors
     "home_power": {

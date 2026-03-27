@@ -38,7 +38,7 @@ Before the Jackery integration can receive any data, **two things must be in pla
    - Use the vendor/Jackery mobile app to add the device/gateway and complete its initial setup.
    - **⚠️ APP Version Requirement**: Jackery APP version must be greater than **2.0.0** to support this integration.
    - Make sure the device has network access and is configured so that it can connect to your MQTT/cloud backend.
-   - In the Jackery app, long-press the app logo to open the configuration screen.
+   - Go to Device Details Page > Settings > MQTT in the Jackery app to open the configuration page.
    - In the Jackery app configuration, **replace the IP with the address of your own MQTT server**.
    ![jackery_config](./img/app_config_mqtt.png)
 
@@ -55,21 +55,15 @@ Before the Jackery integration can receive any data, **two things must be in pla
    - Add repository URL: `https://github.com/ht-it-lab/jackery`
    - Category: `Integration`
    - Click **Add**
-2. **Install the integration**
-   
-   - In HACS, search for **"Jackery"**
-   - Click **Install**
-   - Restart Home Assistant
-3. **Configure the integration**
-   
+2. **Configure the integration**
    - Go to **Settings → Devices & Services → Add Integration**
    - Search for **"Jackery"**
    - **Enter your Token** (Required for authentication)
      - You can find this token in your Jackery app settings or device documentation.
    - Enter an MQTT topic prefix if needed (default: `hb`)
    - Submit to finish configuration
-  ![config](./img/jackery_home_add.png)
-  ![config](./img/jackery_home_config.png)
+     ![config](./img/jackery_home_add.png)
+     ![config](./img/jackery_home_config.png)
 > **Requirement**: The built-in **MQTT integration** must be configured and connected to your MQTT broker **before** Jackery will work.
 
 ### Example: Energy Flow Card Plus
