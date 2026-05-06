@@ -1,8 +1,8 @@
 ## Jackery – Home Assistant Energy Monitoring Integration
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/suyulin/jackery.svg)](https://github.com/suyulin/jackery/releases)
-[![License](https://img.shields.io/github/license/suyulin/jackery.svg)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/release/ht-it-lab/jackery.svg)](https://github.com/ht-it-lab/jackery/releases)
+[![License](https://img.shields.io/github/license/ht-it-lab/jackery.svg)](LICENSE)
 
 > **⚠️ Beta Stage**: This integration is currently in Beta testing phase and may be unstable. Please use with caution and report any issues.
 

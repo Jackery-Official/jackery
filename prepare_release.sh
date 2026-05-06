@@ -167,7 +167,7 @@ fi
 if [ "$RELEASE_CREATED" = false ]; then
     echo "📋 下一步操作 (手动发布):"
     echo "1. 访问 GitHub 创建 Release:"
-    echo "   https://github.com/suyulin/jackery/releases/new?tag=$TAG_NAME"
+    echo "   https://github.com/ht-it-lab/jackery/releases/new?tag=$TAG_NAME"
     echo ""
     echo "2. 如果尚未安装，推荐安装 GitHub CLI (gh) 以便下次自动发布。"
 fi
