@@ -4,39 +4,62 @@
 
 ## 功能特性
 
-该集成采用**协调器模式**（Coordinator Pattern），所有传感器共享一个 `JackeryDataCoordinator` 实例，统一管理 MQTT 订阅和数据请求，提高效率并减少资源占用。
+该集成采用**协调器模式**（Coordinator Pattern），每台 DIY3 主机对应一个独立的 `JackeryDataCoordinator` 实例，统一管理该主机的 MQTT 订阅和数据请求，各主机任务相互隔离、互不影响。
+
+> **多主机支持**：集成不限制实例数量，可重复执行配置流程添加多台 DIY3 主机。每台主机在 HA 中作为独立 Device，其下挂载的 Smart CT / Smart Plug 作为子设备展示。
 
 ### 传感器列表
 
 集成提供以下丰富的传感器数据：
 
+#### 📊 设备状态
+- **Status** (运行状态：normal / waiting / alarm / fault / standby，对应 `stat` 0-4)
+
 #### 🔋 电池信息
 - **Battery SOC** (电池电量) - 单位：%
-- **Battery Charge Power** (电池充电功率) - 单位：W
-- **Battery Discharge Power** (电池放电功率) - 单位：W
+- **Battery Charge Power / Energy** (电池充/放电功率与能量) - W / kWh
 - **Battery Temperature** (电池温度) - 单位：°C
-- **Battery Count** (电池数量)
+- **Battery Count** (加电包数量)
+- **Battery to AC / Grid Energy** (电池到 AC 口 / 并网口能量) - kWh
 
 #### ☀️ 太阳能 (PV)
-- **Solar Power** (太阳能总功率) - 单位：W
+- **Solar Power / Energy** (太阳能总功率与发电量) - W / kWh
 - **Solar Power PV1 - PV4** (各路 PV 功率) - 单位：W
+- **Solar Energy PV1 - PV4** (各路 PV 发电量 `pv1Egy`~`pv4Egy`) - 单位：kWh
+- **PV to Battery / AC / Grid Energy** (光伏到电池 / AC 口 / 并网口能量) - kWh
 
-#### ⚡ 电网 (Grid)
-- **Grid Import Power** (电网取电功率) - 单位：W
-- **Grid Export Power** (电网馈电功率) - 单位：W
+#### ⚡ 电网 / 并网口 (Grid)
+- **Grid Import / Export Power** (并网口输入 / 输出功率) - 单位：W
+- **Grid Import / Export Energy** (并网口输入 / 输出能量) - 单位：kWh
+- **Grid to AC Load / Battery Energy** (电网到 AC 负载 / 电池能量) - kWh
+- **AC to Battery / Grid Energy** (AC 微逆到电池 / 并网口能量) - kWh
 - **Max Output Power** (最大并网输出功率) - 单位：W
 
 #### 🔌 EPS (离网输出)
-- **EPS Output Power** (EPS 输出功率) - 单位：W
-- **EPS Input Power** (EPS 输入功率) - 单位：W
-- **EPS State** (EPS 状态)
+- **EPS Output / Input Power** (EPS 输出 / 输入功率) - 单位：W
+- **EPS State** (交流插座通讯状态 `swEpsState`)
 - **EPS Switch Status** (EPS 开关状态)
 
-#### ⚙️ 设置与状态
-- **SOC Charge Limit** (充电 SOC 限制) - 单位：%
-- **SOC Discharge Limit** (放电 SOC 限制) - 单位：%
-- **Auto Standby Allowed** (是否允许自动待机)
-- **Auto Standby Status** (自动待机状态)
+#### ⚙️ 设置与状态（只读传感器）
+- **SOC Charge / Discharge Limit** (充 / 放电 SOC 限制) - 单位：%
+
+### 控制实体
+
+| 类型 | 实体 | 说明 |
+| :--- | :--- | :--- |
+| Switch | **EPS Switch** (`swEps`) | 交流插座（离网）开关 |
+| Switch | **Auto Standby Allowed** (`isAutoStandby`) | 是否允许自动待机 |
+| Select | **Auto Standby Mode** (`autoStandby`) | 待机模式：invalid / standby / on（0/1/2） |
+| Number | **SOC Charge / Discharge Limit** | 充电上限 / 放电下限 |
+| Number | **Max Output Power (OnGrid)** | 并网口最大输出功率 |
+| Button | **Reboot** | 重启主机（下发 `reboot=1`） |
+| Switch | **Plug Switch** | 智能插座开 / 关（子设备，`type=103`） |
+
+### 子设备（Smart CT / Smart Plug）
+
+- **Smart Plug**：负载功率、累计用电量、开 / 关开关（每台主机最多 10 个）。
+- **Smart CT**：实时功率、累计正向（购电）电量 `Forward Energy`、累计反向（馈网）电量 `Reverse Energy`（每台主机最多 1 台）。
+- 子设备数据从主机 MQTT 消息中消失时，对应实体标记为 `Unavailable`，重新出现时自动恢复。
 
 ## 前置要求
 
@@ -85,38 +108,50 @@ config/
 1. 进入 Home Assistant 的 **设置** → **设备与服务**
 2. 点击右下角的 **添加集成** 按钮
 3. 搜索 "Jackery"
-4. **Token**: 输入您的设备 Token（必填，用于认证）
-5. **MQTT Topic Prefix**: 输入 MQTT 主题前缀（可选，默认：`hb`）
-6. 点击提交完成配置
+4. **设备 SN**: 输入该台 DIY3 主机的序列号（必填，作为集成实例的唯一标识）
+5. **Token**: 输入该设备的 Token（必填，由 Jackery APP 获取并下发给设备；下发指令时携带，设备据此鉴权执行）
+6. **MQTT Topic Prefix**: 输入 MQTT 主题前缀（可选，默认：`hb`）
+7. 点击提交完成配置
+
+> **多主机**：重复以上步骤即可添加多台 DIY3 主机，每台主机需各自输入对应的 SN 与 Token；相同 SN 不能重复添加。
 
 如果 MQTT 集成未配置或不可用，将显示错误提示。
+
+### Token 重新认证
+
+由于设备拒绝 Token 时不会回复任何报文，集成采用启发式判定：**配置完成后持续 5 秒轮询，若 120 秒内始终未收到任何本机消息**（极可能是 Token 无效或 SN 配错），将自动在集成页面弹出 **“Reauthentication Required”**，重新输入有效 Token 后会自动重新加载生效。
 
 ## 架构设计
 
 ### 协调器模式
 
-集成使用 `JackeryDataCoordinator` 类统一管理所有传感器的数据获取：
+每台主机使用一个 `JackeryDataCoordinator` 实例统一管理该主机的数据获取：
 
-- **单一协调器实例**：所有传感器共享一个协调器，避免重复订阅和请求
-- **统一数据请求**：每 10 秒发送一次查询请求
-- **自动分发数据**：协调器接收响应后，根据 JSON 字段自动分发给对应的传感器
-- **自动发现设备**：通过监听状态主题自动获取设备序列号 (SN)
+- **每主机一个协调器**：各主机的订阅与轮询任务相互独立，互不影响（任务隔离）
+- **统一数据请求**：每 **5 秒** 发送一次查询请求（二期需求）
+- **自动分发数据**：协调器接收响应后，根据 JSON 字段自动分发给对应的实体
+- **本机消息过滤**：仅处理本协调器所属 `device_sn` 的报文，避免多主机数据串台
 
 ### 数据流程
 
-1. **发现阶段**：
-   - 协调器订阅通配符主题 (`hb/device/+/status`)
-   - 当接收到消息时，从主题中提取设备 SN (`hb/device/{sn}/status`)
+1. **订阅阶段**：
+   - 协调器订阅本主机专属主题 `hb/device/{sn}/status` 与 `hb/device/{sn}/event`
+   - 非本机的报文会被直接忽略
 
-2. **轮询阶段**：
-   - 获得设备 SN 后，启动定时任务（默认 10秒）
-   - 向 `hb/device/{sn}/action` 发送查询指令 (`type: 25`)
+2. **轮询阶段**（每 5 秒）：
+   - 向 `hb/device/{sn}/action` 发送主机状态查询 (`type: 25`)
+   - 发送子设备查询 (`type: 100`，`devType=2` 电表 / `devType=6` 插座)
 
 3. **数据处理**：
-   - 接收设备在 `status` 主题回复的 JSON 数据
-   - 解析 JSON 字段（如 `batSoc`, `pvPw` 等）
-   - 转换数据单位（如温度除以 10）
-   - 更新所有关联的传感器实体状态
+   - 接收 `status` / `event` 主题的 JSON 数据并合并进缓存
+   - 解析字段（如 `batSoc`, `pvPw`、`stat`、`softver`、`deviceType` 等）
+   - 转换数据单位（如温度 ×0.1、能量 ×0.01）
+   - 更新所有关联的实体状态，并按需刷新设备型号 / 固件版本
+
+4. **离线与异常处理**：
+   - 主机超过 **60 秒** 无消息 → 该主机所有实体标记 `Unavailable`，恢复后自动 `Available`
+   - 子设备从消息中消失超过 60 秒 → 对应实体标记 `Unavailable`（不删除），重现自动恢复
+   - JSON 解析失败 → 保留上一次有效缓存并记录 warning 日志
 
 ## MQTT 主题格式
 
@@ -154,15 +189,16 @@ config/
 
 配置完成后，你可以在以下位置查看传感器：
 
+- **设置 → 设备与服务 → Jackery** → 选择对应主机 Device 查看其全部实体
 - **开发者工具** → **状态** → 搜索 "jackery" 或传感器名称
-- 传感器实体 ID 格式：`sensor.battery_soc`、`sensor.solar_power` 等
+- 多主机下实体 ID 会带上主机标识（如 `sensor.jackery_<sn>_battery_soc`），下方示例请按实际实体 ID 替换
 - 每个传感器包含以下属性：
   - `device_sn`: 设备序列号
   - `raw_key`: 原始 JSON 字段名
 
 ## 在 Lovelace 中使用
 
-你可以使用这些传感器创建能源流图表。例如使用 Energy Flow Card Plus：
+你可以使用这些传感器创建能源流图表（请将下例实体 ID 替换为你环境中的实际 ID）。例如使用 Energy Flow Card Plus：
 
 ```yaml
 type: custom:energy-flow-card-plus

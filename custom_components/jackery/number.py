@@ -19,7 +19,6 @@ NUMBERS = {
     "socChgLimit": {"name": "SOC Charge Limit", "min": 0, "max": 100, "step": 1},
     "socDischgLimit": {"name": "SOC Discharge Limit", "min": 0, "max": 100, "step": 1},
     "maxOutPw": {"name": "Max Output Power (OnGrid)", "min": 0, "max": 10000, "step": 10},
-    "autoStandby": {"name": "Auto Standby Mode", "min": 0, "max": 2, "step": 1},
 }
 
 
@@ -68,18 +67,22 @@ class JackeryMainNumber(NumberEntity):
         self._key = key
         self._coordinator = coordinator
         self._attr_name = name
-        self._attr_unique_id = f"jackery_main_{key}"
+        device_sn = getattr(coordinator, "_device_sn", None)
+        self._attr_unique_id = f"jackery_{device_sn}_main_{key}" if device_sn else f"jackery_main_{key}"
         self._attr_has_entity_name = True
         self._attr_mode = NumberMode.SLIDER
         self._attr_native_min_value = min_value
         self._attr_native_max_value = max_value
         self._attr_native_step = step
-        self._attr_device_info = {
+        device_info = {
             "identifiers": {(DOMAIN, config_entry_id)},
-            "name": "Jackery",
+            "name": f"Jackery {device_sn}" if device_sn else "Jackery",
             "manufacturer": "Jackery",
             "model": "Energy Monitor",
         }
+        if device_sn:
+            device_info["serial_number"] = device_sn
+        self._attr_device_info = device_info
 
     @property
     def should_poll(self) -> bool:

@@ -3,23 +3,28 @@
         "step": {
             "user": {
                 "title": "配置 Jackery",
-                "description": "设置您的 Jackery 能源监控集成。注意：必须先配置 MQTT 集成。",
+                "description": "设置您的 Jackery 能源监控集成。注意：必须先配置 MQTT 集成。可重复添加多台 DIY3 主机（每台主机对应一条配置）。",
                 "data": {
-                    "mqtt_host": "MQTT 地址",
                     "device_sn": "设备 SN",
                     "token": "Token",
                     "topic_prefix": "MQTT 主题前缀"
                 }
+            },
+            "reauth_confirm": {
+                "title": "重新认证 Jackery",
+                "description": "设备 {device_sn} 拒绝了当前 Token，请重新输入有效的 Token。",
+                "data": {
+                    "token": "Token"
+                }
             }
         },
         "error": {
-            "already_configured": "该集成已配置",
-            "mqtt_not_configured": "MQTT 集成未配置或不可用。请先设置 MQTT 集成：设置 -> 设备与服务 -> 添加集成 -> MQTT",
-            "single_instance_allowed": "只允许一个此集成的实例"
+            "already_configured": "该设备已配置",
+            "mqtt_not_configured": "MQTT 集成未配置或不可用。请先设置 MQTT 集成：设置 -> 设备与服务 -> 添加集成 -> MQTT"
         },
         "abort": {
-            "already_configured": "该集成已配置",
-            "single_instance_allowed": "只允许一个此集成的实例"
+            "already_configured": "该设备已配置",
+            "reauth_successful": "重新认证成功"
         }
     }
 }

@@ -16,6 +16,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import DOMAIN
@@ -23,10 +24,41 @@ from . import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 # 常量定义
-REQUEST_INTERVAL = 10  # 数据请求间隔（秒）
+REQUEST_INTERVAL = 5  # 数据请求间隔（秒），二期需求要求 5 秒
+OFFLINE_TIMEOUT = 60  # 离线判定超时（秒），超过未收到上报即标记 Unavailable
+# 自配置完成后持续下发指令但始终无任何响应，超过该时长则提示重新认证 Token
+REAUTH_HINT_TIMEOUT = 120
+
+# 主机运行状态映射（stat 字段）
+DEVICE_STATUS_MAP = {
+    0: "normal",   # 正常
+    1: "waiting",  # 等待
+    2: "alarm",    # 告警
+    3: "fault",    # 故障
+    4: "standby",  # 待机
+}
+
+# deviceType -> 设备型号名称映射（用于设备详情展示），未命中则回退 "Energy Monitor"
+DEVICE_TYPE_MODEL_MAP = {
+    1: "加电包",
+    2: "CT/电表采集头/电表",
+    3: "CT",
+    4: "电表采集头",
+}
+DEFAULT_MODEL = "Energy Monitor"
 
 # 传感器配置
 SENSORS = {
+    # 设备状态
+    "device_status": {
+        "json_key": "stat",
+        "name": "Status",
+        "unit": None,
+        "icon": "mdi:state-machine",
+        "device_class": SensorDeviceClass.ENUM,
+        "state_class": None,
+        "options": list(DEVICE_STATUS_MAP.values()),
+    },
     # 电池相关
     "battery_soc": {
         "json_key": "batSoc",
@@ -419,6 +451,15 @@ SENSORS = {
         "state_class": SensorStateClass.TOTAL_INCREASING,
         "scale": 0.01,
     },
+    "ac_to_grid_energy": {
+        "json_key": "acOtOngridEgy",
+        "name": "AC to Grid Energy",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "icon": "mdi:transmission-tower-export",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "scale": 0.01,
+    },
 }
 
 # 子设备传感器配置
@@ -454,12 +495,21 @@ SUBDEVICE_SENSORS = {
             "icon": "mdi:current-ac",
         },
         "energy": {
-            "key": "phaseEgy", # Resolve by subType to A/B/C/Total
-            "name": "Energy",
+            "key": "phaseEgy", # Resolve by subType to A/B/C/Total（累计正向/购电电量）
+            "name": "Forward Energy",
             "unit": UnitOfEnergy.KILO_WATT_HOUR,
             "device_class": SensorDeviceClass.ENERGY,
             "state_class": SensorStateClass.TOTAL_INCREASING,
-            "icon": "mdi:lightning-bolt",
+            "icon": "mdi:transmission-tower-import",
+            "scale": 0.01, # Assumption
+        },
+        "energy_reverse": {
+            "key": "TnphaseEgy", # 累计反向/馈网电量（按总量取，兼容 tnPhaseEgy / 各相相加）
+            "name": "Reverse Energy",
+            "unit": UnitOfEnergy.KILO_WATT_HOUR,
+            "device_class": SensorDeviceClass.ENERGY,
+            "state_class": SensorStateClass.TOTAL_INCREASING,
+            "icon": "mdi:transmission-tower-export",
             "scale": 0.01, # Assumption
         },
     },
@@ -484,14 +534,23 @@ class JackeryDataCoordinator:
         self._last_update_time = time.time()
 
         self._known_plugs = set() # Set of known plug SNs
-        self._subdevice_missing_since = {} # {sn: timestamp} for deletion delay
+        self._subdevice_missing_since = {} # {sn: timestamp} for offline marking delay
+        self._device_type = None  # 主机 deviceType（用于型号展示）
+        self._soft_ver = None     # 固件合并包版本 softver
+        self._reauth_started = False  # 避免重复触发 Token 重认证
+        self._ever_received = False   # 自启动以来是否收到过本机有效消息
+        self._start_time = time.time()
         self.add_entities_callback = None # Callback to add new entities
         self.add_switch_entities_callback = None # Callback to add new switch entities
         self._data_cache = {} # Cache for merged data from status and events
 
         # Topic patterns
-        self._topic_status_wildcard = f"{self._topic_root}/device/+/status"
-        self._topic_event_wildcard = f"{self._topic_root}/device/+/event"
+        # 二期需求：各主机使用独立的 MQTT 主题订阅，互不影响。
+        # device_sn 在配置时为必填，因此优先订阅本主机专属主题，实现彻底的任务隔离；
+        # 仅在极少数 device_sn 缺失场景下回退到通配符订阅 + 自动发现。
+        sn_segment = self._device_sn if self._device_sn else "+"
+        self._topic_status_wildcard = f"{self._topic_root}/device/{sn_segment}/status"
+        self._topic_event_wildcard = f"{self._topic_root}/device/{sn_segment}/event"
 
     def register_sensor(self, sensor_id: str, entity: "JackerySensor") -> None:
         """注册传感器实体."""
@@ -550,7 +609,6 @@ class JackeryDataCoordinator:
 
     def _handle_message(self, msg) -> None:
         """处理接收到的 MQTT 消息."""
-        self._last_update_time = time.time()
         try:
             topic = msg.topic
             payload = msg.payload
@@ -566,13 +624,22 @@ class JackeryDataCoordinator:
                     self._device_sn = sn
                     _LOGGER.info(f"Discovered device SN: {self._device_sn}")
                 elif self._device_sn != sn:
-                    _LOGGER.debug(f"Received data from another device: {sn}")
+                    # 任务隔离：仅处理本协调器所属主机的消息，避免多主机数据串台
+                    _LOGGER.debug(f"Ignoring data from another device: {sn}")
+                    return
+
+            # 只有确认是本主机的消息才刷新心跳时间，保证离线判定准确
+            self._last_update_time = time.time()
+            self._ever_received = True
 
             # Parse Payload
             try:
                 raw_data = json.loads(payload)
                 msg_code = raw_data.get("type")
                 body = raw_data.get("body")
+
+                # 捕获设备型号(deviceType)与固件合并包版本(softver)，用于设备详情展示
+                self._capture_device_meta(raw_data, body)
                 
                 # If body is missing or None, use empty dict or the raw_data itself if it looks like data
                 # But protocol says data is in body.
@@ -587,7 +654,13 @@ class JackeryDataCoordinator:
                 # Type 23: Statistical/Energy Data
                 if msg_code == 23 and isinstance(body, dict):
                     device_sn_in_body = body.get("deviceSn")
-                    if device_sn_in_body == "system":
+                    # 主设备统计：deviceSn 缺省、等于主机 SN，或为兼容写法 "system"
+                    # （历史 Bug：此前仅判断 == "system"，导致主机累计电量永远丢失）
+                    if (
+                        not device_sn_in_body
+                        or device_sn_in_body == self._device_sn
+                        or device_sn_in_body == "system"
+                    ):
                         # Merge into main device cache
                         self._data_cache.update(body)
                     else:
@@ -667,7 +740,7 @@ class JackeryDataCoordinator:
             _LOGGER.error(f"Error handling message: {e}")
 
     def _check_for_new_plugs(self, data: dict) -> None:
-        """检查并同步插座/CT（添加新设备，移除旧设备）."""
+        """检查并同步插座/CT（添加新设备；离线子设备标记 Unavailable）."""
         # Check both keys
         plugs = data.get("plugs") or data.get("plug")
         if not plugs or not isinstance(plugs, list):
@@ -688,37 +761,29 @@ class JackeryDataCoordinator:
         # 1. 更新 missing 状态
         for sn in current_sns:
             if sn in self._subdevice_missing_since:
-                _LOGGER.info(f"Sub-device {sn} reappeared, cancelling deletion.")
+                _LOGGER.info(f"Sub-device {sn} reappeared, cancelling offline timer.")
                 del self._subdevice_missing_since[sn]
 
         for sn in self._known_plugs:
             if sn not in current_sns:
                 if sn not in self._subdevice_missing_since:
                     self._subdevice_missing_since[sn] = now
-                    _LOGGER.info(f"Sub-device {sn} missing, starting 60s deletion timer...")
+                    _LOGGER.info(f"Sub-device {sn} missing, starting {OFFLINE_TIMEOUT}s offline timer...")
 
-        # 2. 执行真正的移除
+        # 2. 子设备离线处理：超过 OFFLINE_TIMEOUT 未出现则标记实体为 Unavailable
+        #    （二期需求：数据消失标记 Unavailable，重新出现自动恢复；不删除实体）
+        for sn in current_sns:
+            self._set_subdevice_available(sn, True)
+
         for sn in list(self._subdevice_missing_since.keys()):
-            if sn not in self._known_plugs:
-                del self._subdevice_missing_since[sn]
-                continue
-            
-            if sn in current_sns:
+            if sn not in self._known_plugs or sn in current_sns:
                 del self._subdevice_missing_since[sn]
                 continue
 
             missing_time = self._subdevice_missing_since[sn]
-            if now - missing_time > 60:
-                _LOGGER.info(f"Sub-device {sn} missing for >60s. Removing.")
-                self._known_plugs.remove(sn)
-                del self._subdevice_missing_since[sn]
-                
-                # Remove entities
-                for sensor_id, entity in list(self._sensors.items()):
-                    # Match unique IDs containing the SN for sub-devices
-                    # Format: jackery_plug_{sn}_xxx or jackery_ct_{sn}_xxx or jackery_plug_{sn}_switch
-                    if f"_{sn}_" in sensor_id or sensor_id.endswith(f"_{sn}"):
-                        self.hass.async_create_task(entity.async_remove(force_remove=True))
+            if now - missing_time > OFFLINE_TIMEOUT:
+                _LOGGER.info(f"Sub-device {sn} missing for >{OFFLINE_TIMEOUT}s. Marking unavailable.")
+                self._set_subdevice_available(sn, False)
 
         # 3. 处理新增
         new_entities = []
@@ -831,6 +896,74 @@ class JackeryDataCoordinator:
             0,
             False
         )
+
+    def _capture_device_meta(self, raw_data: dict, body) -> None:
+        """从报文中捕获主机 deviceType 与固件版本 softver，并按需刷新设备详情.
+
+        - deviceType：位于报文顶层（见协议 type=25/2 示例）。
+        - softver：设备固件合并包版本，可能出现在顶层或 body 中。
+        """
+        changed = False
+
+        device_type = raw_data.get("deviceType")
+        if device_type is not None and device_type != self._device_type:
+            self._device_type = device_type
+            changed = True
+
+        soft_ver = raw_data.get("softver")
+        if soft_ver is None and isinstance(body, dict):
+            soft_ver = body.get("softver")
+        if soft_ver is not None and soft_ver != self._soft_ver:
+            self._soft_ver = soft_ver
+            changed = True
+
+        if changed:
+            self._update_device_registry()
+
+    def _update_device_registry(self) -> None:
+        """根据 deviceType/softver 动态更新 HA 设备详情中的型号与固件版本."""
+        entry_id = getattr(self, "config_entry_id", None)
+        if not entry_id:
+            return
+        dev_reg = dr.async_get(self.hass)
+        device = dev_reg.async_get_device(identifiers={(DOMAIN, entry_id)})
+        if device is None:
+            return
+
+        updates: dict[str, Any] = {}
+        if self._device_type is not None:
+            model = DEVICE_TYPE_MODEL_MAP.get(self._device_type, DEFAULT_MODEL)
+            if device.model != model:
+                updates["model"] = model
+        if self._soft_ver is not None:
+            sw_version = str(self._soft_ver)
+            if device.sw_version != sw_version:
+                updates["sw_version"] = sw_version
+
+        if updates:
+            dev_reg.async_update_device(device.id, **updates)
+
+    def _trigger_reauth(self, reason: str = "") -> None:
+        """触发 HA 集成页面的 "Reauthentication Required".
+
+        说明：设备拒绝 Token 时不会回复任何报文（业务方确认），因此无法从某条报文
+        直接判定鉴权失败。这里采用启发式：自配置完成后持续下发指令但长时间从未收到
+        任何本机消息，则极可能是 Token 无效（或 SN 配错），提示用户重新输入 Token。
+        """
+        if self._reauth_started:
+            return
+        self._reauth_started = True
+        _LOGGER.error(
+            "Device %s never responded since setup, possible Token rejection. %s",
+            self._device_sn,
+            reason,
+        )
+        entry_id = getattr(self, "config_entry_id", None)
+        if not entry_id:
+            return
+        entry = self.hass.config_entries.async_get_entry(entry_id)
+        if entry is not None:
+            entry.async_start_reauth(self.hass)
 
     def _calculate_energy_flow(self, data: dict) -> dict:
         """
@@ -982,6 +1115,28 @@ class JackeryDataCoordinator:
                 entity._attr_available = False
                 entity.async_write_ha_state()
 
+    def _entity_keys_for_subdevice(self, sn: str) -> list[str]:
+        """精确匹配某个子设备 SN 对应的已注册实体 key（避免 SN 包含关系误匹配）."""
+        keys = []
+        for sensor_id in self._sensors:
+            if (
+                sensor_id.startswith(f"jackery_plug_{sn}_")
+                or sensor_id.startswith(f"jackery_ct_{sn}_")
+                or sensor_id == f"plug_switch_{sn}"
+            ):
+                keys.append(sensor_id)
+        return keys
+
+    def _set_subdevice_available(self, sn: str, available: bool) -> None:
+        """设置某个子设备所有实体的可用状态."""
+        for sensor_id in self._entity_keys_for_subdevice(sn):
+            entity = self._sensors.get(sensor_id)
+            if entity is None:
+                continue
+            if entity.available != available:
+                entity._attr_available = available
+                entity.async_write_ha_state()
+
     async def _periodic_data_request(self) -> None:
         """定期发送 'type: 25' 和 'type: 100' 指令."""
         _LOGGER.info(f"Starting periodic data polling for {self._device_sn} via {self._mqtt_host}...")
@@ -989,8 +1144,16 @@ class JackeryDataCoordinator:
 
         while True:
             try:
-                if time.time() - self._last_update_time > 60:
+                if time.time() - self._last_update_time > OFFLINE_TIMEOUT:
                     self._mark_all_offline()
+
+                # 启发式：配置后持续轮询却长时间从未收到任何响应 → 极可能 Token 无效
+                if (
+                    not self._ever_received
+                    and self._device_sn
+                    and time.time() - self._start_time > REAUTH_HINT_TIMEOUT
+                ):
+                    self._trigger_reauth("no response within reauth hint window")
 
                 if not self._device_sn:
                     _LOGGER.debug("Waiting for device SN discovery...")
@@ -1115,15 +1278,22 @@ class JackerySensor(SensorEntity):
         self._attr_icon = self._config["icon"]
         self._attr_device_class = self._config["device_class"]
         self._attr_state_class = self._config["state_class"]
-        self._attr_unique_id = f"jackery_{sensor_id}"
+        if self._config.get("options") is not None:
+            self._attr_options = self._config["options"]
+
+        device_sn = getattr(coordinator, "_device_sn", None)
+        self._attr_unique_id = f"jackery_{device_sn}_{sensor_id}" if device_sn else f"jackery_{sensor_id}"
         self._attr_has_entity_name = True
 
-        self._attr_device_info = {
+        device_info = {
             "identifiers": {(DOMAIN, config_entry_id)},
-            "name": "Jackery",
+            "name": f"Jackery {device_sn}" if device_sn else "Jackery",
             "manufacturer": "Jackery",
             "model": "Energy Monitor",
         }
+        if device_sn:
+            device_info["serial_number"] = device_sn
+        self._attr_device_info = device_info
 
     @property
     def should_poll(self) -> bool:
@@ -1159,7 +1329,12 @@ class JackerySensor(SensorEntity):
             return
 
         # Process specific conversions
-        if self._sensor_id == "battery_temperature":
+        if self._sensor_id == "device_status":
+            try:
+                self._attr_native_value = DEVICE_STATUS_MAP.get(int(value))
+            except (TypeError, ValueError):
+                self._attr_native_value = None
+        elif self._sensor_id == "battery_temperature":
             # cellTemp is 0.1 C
             try:
                 self._attr_native_value = float(value) * 0.1
