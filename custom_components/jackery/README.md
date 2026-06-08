@@ -198,28 +198,37 @@ config/
 
 ## 在 Lovelace 中使用
 
-你可以使用这些传感器创建能源流图表（请将下例实体 ID 替换为你环境中的实际 ID）。例如使用 Energy Flow Card Plus：
+默认设备页会把 40+ 实体平铺展示，信息密度高但缺少层次。推荐使用自定义看板：
+
+### 完整可视化看板（推荐）
+
+1. 在 HACS 安装 **Mushroom Cards** 与 **Power Flow Card Plus**
+2. 按 [docs/lovelace_dashboard_setup.md](../../docs/lovelace_dashboard_setup.md) 创建「Jackery 能源」仪表盘
+3. 使用 [docs/lovelace_dashboard_jackery.yaml](../../docs/lovelace_dashboard_jackery.yaml) 作为原始配置
+4. 实体 ID 命名规则见 [docs/entity_id_reference.md](../../docs/entity_id_reference.md)
+
+看板结构：顶部状态芯片 → 能量流图 → 电池 / 光伏电网指标 → 控制区 → 可折叠详细数据。
+
+### 仅能量流卡片
+
+项目根目录 [energy_flow_card_config.yaml](../../energy_flow_card_config.yaml) 提供单卡片配置。请将实体 ID 中的 SN 替换为实际值，例如 `sensor.jackery_hs2c12600262hh4_solar_power`：
 
 ```yaml
-type: custom:energy-flow-card-plus
+type: custom:power-flow-card-plus
 entities:
   solar:
-    entity: sensor.solar_power
-    name: Solar
+    entity: sensor.jackery_{sn}_solar_power
   grid:
-    entity:
-      consumption: sensor.grid_import_power
-      production: sensor.grid_export_power
-    name: Grid
+    entity: sensor.jackery_{sn}_grid_net_power
+    display_state: two_way
   battery:
     entity:
-      consumption: sensor.battery_charge_power
-      production: sensor.battery_discharge_power
-    state_of_charge: sensor.battery_soc
-    name: Battery
+      consumption: sensor.jackery_{sn}_calc_battery_charge_power
+      production: sensor.jackery_{sn}_calc_battery_discharge_power
+    state_of_charge: sensor.jackery_{sn}_battery_soc
+    display_state: two_way
   home:
-    entity: sensor.eps_output_power  # 或其他代表家庭负载的传感器
-    name: Home
+    entity: sensor.jackery_{sn}_home_power
 ```
 
 ## 故障排除
