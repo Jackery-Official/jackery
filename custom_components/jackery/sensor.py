@@ -86,8 +86,16 @@ _FLAT_PAYLOAD_KEYS = frozenset(
         "outGridSidePw",
         "swEpsInPw",
         "swEpsOutPw",
+        "batInPw",
+        "batOutPw",
+        "otherLoadPw",
     }
 )
+
+
+def _field_present(data: dict[str, Any], key: str) -> bool:
+    """字段是否在缓存中存在（0 也算有效值，区别于 None 未上报）。"""
+    return key in data and data[key] is not None
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -1426,16 +1434,16 @@ class JackeryDataCoordinator:
 
     def _calculate_energy_flow(self, data: dict) -> dict:
         """
-        按 App 端公式计算能量流数据.
+        按 App 端公式计算能量流（优先 type=106 systemBody 字段）.
 
-        Grid: inGridSidePw - outGridSidePw，异常时回退 gridInPw - gridOutPw
+        Grid: inGridSidePw - outGridSidePw，异常时回退 gridInPw - gridOutPw（与 App 一致）
         Ongrid: gridInPw - gridOutPw（回退 inOngridPw - outOngridPw）
-        AC Socket: swEpsInPw > 0 ? swEpsInPw : swEpsOutPw
-        Battery: pv + ac + ong
-        Home: grid - ong（有 CT 时保留异常分支）
+        AC Socket: swEpsInPw > 0 ? swEpsInPw : swEpsOutPw（type=25 设备级）
+        Battery: 优先 batInPw/batOutPw（type=106）；否则 pv + ac + ong
+        Home: grid - ong；无电网数据时回退 otherLoadPw
         """
         try:
-            # 1. PV
+            # 1. PV（设备级 type=25，系统级 type=106 通常不含 pvPw）
             pv_val = data.get("pvPw", 0)
             if isinstance(pv_val, dict):
                 pv = _safe_float(
@@ -1444,17 +1452,19 @@ class JackeryDataCoordinator:
             else:
                 pv = _safe_float(pv_val)
 
-            # 2. 并网口功率（App: gridInPw - gridOutPw）
+            # 2. 并网口功率 ong（App systemBody: gridInPw - gridOutPw）
             grid_in = _safe_float(data.get("gridInPw"))
             grid_out = _safe_float(data.get("gridOutPw"))
             ongrid_charge = _safe_float(data.get("inOngridPw"))
             ongrid_supply = _safe_float(data.get("outOngridPw"))
-            if grid_in or grid_out:
+            if _field_present(data, "gridInPw") or _field_present(data, "gridOutPw"):
                 p_ong = grid_in - grid_out
-            else:
+            elif _field_present(data, "inOngridPw") or _field_present(data, "outOngridPw"):
                 p_ong = ongrid_charge - ongrid_supply
+            else:
+                p_ong = 0.0
 
-            # 3. AC Socket
+            # 3. AC Socket（设备级 swEps*）
             ac_in = _safe_float(data.get("swEpsInPw"))
             ac_out = _safe_float(data.get("swEpsOutPw"))
             p_ac = ac_in - ac_out
@@ -1463,8 +1473,14 @@ class JackeryDataCoordinator:
             # 4. 电网侧端口（App: inGridSidePw - outGridSidePw）
             in_grid_side = _safe_float(data.get("inGridSidePw"))
             out_grid_side = _safe_float(data.get("outGridSidePw"))
+            has_grid_side = (
+                _field_present(data, "inGridSidePw") or _field_present(data, "outGridSidePw")
+            )
+            has_grid_io = (
+                _field_present(data, "gridInPw") or _field_present(data, "gridOutPw")
+            )
 
-            # 5. CT 电表（优先）
+            # 5. CT 电表（有实时功率时优先于系统侧推算）
             grid_available = False
             grid_buy = 0.0
             grid_sell = 0.0
@@ -1496,37 +1512,47 @@ class JackeryDataCoordinator:
                     grid_available = True
                     ct_available = True
 
-            if not grid_available and (
-                data.get("gridInPw") is not None or data.get("gridOutPw") is not None
-            ):
-                grid_buy = grid_in
-                grid_sell = grid_out
-                grid_available = True
-
-            # 6. 计算电网净功率
+            # 6. 电网净功率（App 图二：先电网侧，再回退并网口）
             p_grid = 0.0
-            if grid_available:
+            if ct_available:
                 p_grid = grid_buy - grid_sell
-                if ct_available and grid_buy < ongrid_charge and (ongrid_charge - grid_buy) <= 50:
+                if (
+                    ongrid_charge > 0
+                    and grid_buy < ongrid_charge
+                    and (ongrid_charge - grid_buy) <= 50
+                ):
                     p_grid = p_ong
-            elif in_grid_side or out_grid_side:
+            elif has_grid_side:
                 grid_available = True
                 p_grid = in_grid_side - out_grid_side
                 if (
-                    in_grid_side < grid_in
-                    and data.get("gridInPw") is not None
+                    _field_present(data, "inGridSidePw")
+                    and _field_present(data, "gridInPw")
+                    and in_grid_side < grid_in
                     and (grid_in - in_grid_side) <= 50
                 ):
                     p_grid = grid_in - grid_out
-            elif grid_in or grid_out:
+            elif has_grid_io:
                 grid_available = True
                 p_grid = grid_in - grid_out
-            elif ongrid_charge or ongrid_supply:
+            elif _field_present(data, "inOngridPw") or _field_present(data, "outOngridPw"):
                 grid_available = True
                 p_grid = p_ong
 
-            # 7. 电池净功率
-            p_batt = pv + p_ac + p_ong
+            # 7. 电池功率：优先 type=106 的 batInPw/batOutPw，否则 App 公式 pv+ac+ong
+            bat_in = _safe_float(data.get("batInPw"))
+            bat_out = _safe_float(data.get("batOutPw"))
+            has_system_bat = (
+                _field_present(data, "batInPw") or _field_present(data, "batOutPw")
+            )
+            if has_system_bat:
+                p_batt = bat_in - bat_out
+                calc_batt_charge = bat_in
+                calc_batt_discharge = bat_out
+            else:
+                p_batt = pv + p_ac + p_ong
+                calc_batt_charge = max(0.0, p_batt)
+                calc_batt_discharge = max(0.0, -p_batt)
 
             # 8. 家庭负载
             p_home = 0.0
@@ -1552,14 +1578,18 @@ class JackeryDataCoordinator:
                         p_home = grid_sell - ongrid_supply
                     elif grid_sell > 0 and ongrid_charge > 0:
                         p_home = grid_sell + ongrid_charge
-            elif ongrid_supply > 0:
+            elif _field_present(data, "outOngridPw") and ongrid_supply > 0:
                 p_home = ongrid_supply
+
+            other_load = _safe_float(data.get("otherLoadPw"))
+            if p_home == 0.0 and _field_present(data, "otherLoadPw") and other_load > 0:
+                p_home = other_load
 
             data["calc_ac_socket_power"] = ac_socket
             data["calc_home_power"] = p_home
             data["calc_batt_net_power"] = p_batt
-            data["calc_battery_charge_power"] = max(0.0, p_batt)
-            data["calc_battery_discharge_power"] = max(0.0, -p_batt)
+            data["calc_battery_charge_power"] = calc_batt_charge
+            data["calc_battery_discharge_power"] = calc_batt_discharge
             data["grid_available"] = grid_available
             data["calc_grid_net_power"] = p_grid
 
