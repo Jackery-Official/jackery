@@ -27,8 +27,7 @@ views:
                 icon: mdi:state-machine
                 icon_color: purple
                 content: >-
-                  状态: {{ states('sensor.jackery_hs2c12600262hh4_device_status')
-                  }}
+                  状态: {{ states('sensor.jackery_hs2c12600262hh4_status') }}
               - type: template
                 icon: mdi:battery-multiple
                 icon_color: blue
