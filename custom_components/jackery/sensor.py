@@ -1177,6 +1177,10 @@ class JackeryDataCoordinator:
                     return item
         return None
 
+    def get_plug_item(self, plug_sn: str) -> dict[str, Any]:
+        """获取插座最新缓存（控制校验与实体展示统一数据源）。"""
+        return dict(self._find_plug_in_cache(plug_sn) or {})
+
     async def async_control_subdevice_switch(self, plug_sn: str, dev_type: int, is_on: bool) -> None:
         """Control sub-device switch via type 103（仅 commMode=1 本地连接）。"""
         if not self._device_sn:

@@ -280,21 +280,21 @@ views:
                     name: 正向电量 (购电)
                   - entity: sensor.jackery_ct_841fe891ba44_reverse_energy
                     name: 反向电量 (馈网)
-              - type: entities
+              - type: custom:mushroom-title-card
                 title: 智能插座
+                subtitle: Shelly Plug · 9070694adb4c (devType=6) · 仅 commMode=1 可 MQTT 控制
+              - type: custom:mushroom-entity-card
+                entity: switch.jackery_plug_9070694adb4c_switch
+                name: 插座开关 (type=103)
+                icon_color: amber
+                layout: horizontal
+                tap_action:
+                  action: toggle
+                secondary_info: state
+              - type: entities
                 state_color: true
-                show_header_toggle: true
+                show_header_toggle: false
                 entities:
-                  - type: section
-                    label: Shelly Plug · 9070694adb4c (devType=6)
-                  - type: custom:mushroom-entity-card
-                    entity: switch.jackery_plug_9070694adb4c_switch
-                    name: 插座开关 (type=103)
-                    icon_color: amber
-                    layout: horizontal
-                    tap_action:
-                      action: toggle
-                    secondary_info: state
                   - entity: sensor.jackery_plug_9070694adb4c_power
                     name: 实时功率
                   - entity: sensor.jackery_plug_9070694adb4c_energy

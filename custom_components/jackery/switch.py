@@ -116,12 +116,27 @@ class JackeryPlugSwitch(SwitchEntity):
         self._coordinator.unregister_sensor(f"plug_switch_{self._plug_sn}")
         await super().async_will_remove_from_hass()
 
-    def _update_from_coordinator(self, data: dict) -> None:
-        plugs = data.get("plugs") or data.get("plug")
-        if not plugs or not isinstance(plugs, list):
-            return
+    def _plug_item(self) -> dict[str, Any]:
+        """合并协调器缓存与实体快照，优先使用缓存中的 commMode 等字段。"""
+        cached = self._coordinator.get_plug_item(self._plug_sn)
+        if cached:
+            return {**self._raw_data, **cached}
+        return dict(self._raw_data)
 
-        my_plug = next((p for p in plugs if (p.get("sn") == self._plug_sn or p.get("deviceSn") == self._plug_sn)), None)
+    def _update_from_coordinator(self, data: dict) -> None:
+        my_plug = self._coordinator.get_plug_item(self._plug_sn)
+        if not my_plug:
+            plugs = data.get("plugs") or data.get("plug")
+            if plugs and isinstance(plugs, list):
+                my_plug = next(
+                    (
+                        p
+                        for p in plugs
+                        if isinstance(p, dict)
+                        and (p.get("sn") == self._plug_sn or p.get("deviceSn") == self._plug_sn)
+                    ),
+                    None,
+                )
         if not my_plug:
             return
 
@@ -138,9 +153,25 @@ class JackeryPlugSwitch(SwitchEntity):
 
     def _ensure_mqtt_controllable(self) -> None:
         """仅 commMode=1（本地连接）时允许 MQTT 控制。"""
-        allowed, reason = plug_mqtt_control_allowed(self._raw_data)
+        allowed, reason = plug_mqtt_control_allowed(self._plug_item())
         if not allowed:
             raise HomeAssistantError(reason)
+
+    async def async_toggle(self, **kwargs: Any) -> None:
+        """看板标题开关/卡片 toggle 均走此入口，云云对接时开/关统一拦截。"""
+        self._ensure_mqtt_controllable()
+        if self.is_on:
+            await self._coordinator.async_control_subdevice_switch(
+                plug_sn=self._plug_sn,
+                dev_type=self._dev_type,
+                is_on=False,
+            )
+        else:
+            await self._coordinator.async_control_subdevice_switch(
+                plug_sn=self._plug_sn,
+                dev_type=self._dev_type,
+                is_on=True,
+            )
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         self._ensure_mqtt_controllable()
@@ -160,7 +191,7 @@ class JackeryPlugSwitch(SwitchEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        raw = self._raw_data or {}
+        raw = self._plug_item()
         mode = plug_comm_mode(raw)
         mqtt_ok, mqtt_block_reason = plug_mqtt_control_allowed(raw)
         return {
