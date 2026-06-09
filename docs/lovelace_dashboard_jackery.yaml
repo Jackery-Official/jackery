@@ -1,0 +1,305 @@
+views:
+  - title: Jackery 全量能源看板
+    path: jackery_full_dashboard
+    type: sections
+    max_columns: 3
+    cards: []
+    sections:
+      - type: grid
+        cards:
+          - type: custom:mushroom-chips-card
+            alignment: center
+            chips:
+              - type: template
+                icon: mdi:battery-80
+                icon_color: green
+                content: >-
+                  SOC: {{ states('sensor.jackery_hs2c12600262hh4_battery_soc')
+                  }}%
+              - type: template
+                icon: mdi:thermometer
+                icon_color: orange
+                content: >-
+                  温度: {{
+                  states('sensor.jackery_hs2c12600262hh4_battery_temperature')
+                  }}°C
+              - type: template
+                icon: mdi:state-machine
+                icon_color: purple
+                content: >-
+                  状态: {{ states('sensor.jackery_hs2c12600262hh4_device_status')
+                  }}
+              - type: template
+                icon: mdi:battery-multiple
+                icon_color: blue
+                content: >-
+                  电池包: {{ states('sensor.jackery_hs2c12600262hh4_battery_count')
+                  }}个
+          - type: custom:power-flow-card-plus
+            title: 实时全景能量流拓扑
+            entities:
+              grid:
+                entity: sensor.jackery_hs2c12600262hh4_grid_net_power
+                display_state: two_way
+                color_circle: true
+                name: 外部电网
+              solar:
+                entity: sensor.jackery_hs2c12600262hh4_solar_power
+                name: 光伏发电
+              battery:
+                entity:
+                  consumption: sensor.jackery_hs2c12600262hh4_calc_battery_charge_power
+                  production: sensor.jackery_hs2c12600262hh4_calc_battery_discharge_power
+                state_of_charge: sensor.jackery_hs2c12600262hh4_battery_soc
+                display_state: two_way
+                color_circle: true
+                name: 储能电池
+              home:
+                entity: sensor.jackery_hs2c12600262hh4_home_power
+                color_icon: true
+                name: 家庭总负载
+              individual:
+                - entity: sensor.jackery_hs2c12600262hh4_eps_output_power
+                  name: EPS 离网系统
+                  icon: mdi:power-plug
+                  display_zero: true
+            watt_threshold: 1000
+            display_zero_lines:
+              mode: show
+              transparency: 40
+      - type: grid
+        cards:
+          - type: custom:mushroom-title-card
+            title: 实时功率监测
+            subtitle: 设备各端口瞬时负载
+          - type: custom:mushroom-entity-card
+            entity: sensor.jackery_hs2c12600262hh4_battery_net_power
+            name: 电池净功率 (计算)
+            icon_color: amber
+            layout: horizontal
+          - type: custom:mushroom-entity-card
+            entity: sensor.jackery_hs2c12600262hh4_battery_charge_power
+            name: 电池充电功率
+            icon_color: green
+            layout: horizontal
+          - type: custom:mushroom-entity-card
+            entity: sensor.jackery_hs2c12600262hh4_battery_discharge_power
+            name: 电池放电功率
+            icon_color: red
+            layout: horizontal
+          - type: custom:mushroom-entity-card
+            entity: sensor.jackery_hs2c12600262hh4_grid_import_power
+            name: 电网买电功率
+            icon_color: blue
+            layout: horizontal
+          - type: custom:mushroom-entity-card
+            entity: sensor.jackery_hs2c12600262hh4_grid_export_power
+            name: 电网馈网功率
+            icon_color: teal
+            layout: horizontal
+          - type: custom:mushroom-entity-card
+            entity: sensor.jackery_hs2c12600262hh4_eps_input_power
+            name: EPS 输入侧功率
+            icon_color: purple
+            layout: horizontal
+      - type: grid
+        cards:
+          - type: custom:mushroom-title-card
+            title: 智能控制中心
+            subtitle: 参数设置与主控执行
+          - type: custom:mushroom-entity-card
+            entity: switch.jackery_hs2c12600262hh4_eps_switch
+            name: EPS 离网强电输出开关
+            icon_color: light-blue
+            tap_action:
+              action: toggle
+            secondary_info: state
+          - type: custom:mushroom-entity-card
+            entity: switch.jackery_hs2c12600262hh4_auto_standby_allowed
+            name: 允许自动待机 (开关)
+            icon_color: deep-purple
+            tap_action:
+              action: toggle
+          - type: custom:mushroom-select-card
+            entity: select.jackery_hs2c12600262hh4_auto_standby_mode
+            name: 待机模式策略
+            icon_color: deep-purple
+          - type: custom:mushroom-number-card
+            entity: number.jackery_hs2c12600262hh4_soc_charge_limit
+            name: 充电 SOC 目标上限
+            icon_color: green
+          - type: custom:mushroom-number-card
+            entity: number.jackery_hs2c12600262hh4_soc_discharge_limit
+            name: 放电 SOC 安全下限
+            icon_color: deep-orange
+          - type: custom:mushroom-number-card
+            entity: number.jackery_hs2c12600262hh4_max_output_power_ongrid
+            name: 并网口最大输出功率
+            icon_color: teal
+          - type: custom:mushroom-entity-card
+            entity: button.jackery_hs2c12600262hh4_reboot
+            name: 重启主控硬件设备
+            icon_color: red
+            layout: horizontal
+            secondary_info: none
+            tap_action:
+              action: toggle
+      - type: grid
+        cards:
+          - type: custom:mushroom-title-card
+            title: 光伏分路采样监测
+            subtitle: 4组独立MPPT的实时与历史
+          - type: entities
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - type: section
+                label: 实时瞬时功率
+              - entity: sensor.jackery_hs2c12600262hh4_solar_power_pv1
+                name: PV1 (第1路功率)
+                icon: mdi:solar-panel-large
+              - entity: sensor.jackery_hs2c12600262hh4_solar_power_pv2
+                name: PV2 (第2路功率)
+                icon: mdi:solar-panel-large
+              - entity: sensor.jackery_hs2c12600262hh4_solar_power_pv3
+                name: PV3 (第3路功率)
+                icon: mdi:solar-panel-large
+              - entity: sensor.jackery_hs2c12600262hh4_solar_power_pv4
+                name: PV4 (第4路功率)
+                icon: mdi:solar-panel-large
+              - type: section
+                label: 历史累计发电
+              - entity: sensor.jackery_hs2c12600262hh4_solar_energy_pv1
+                name: PV1 发电累计
+              - entity: sensor.jackery_hs2c12600262hh4_solar_energy_pv2
+                name: PV2 发电累计
+              - entity: sensor.jackery_hs2c12600262hh4_solar_energy_pv3
+                name: PV3 发电累计
+              - entity: sensor.jackery_hs2c12600262hh4_solar_energy_pv4
+                name: PV4 发电累计
+      - type: grid
+        cards:
+          - type: custom:mushroom-title-card
+            title: 核心历史累计电量
+            subtitle: 各物理端口的能量积算明细
+          - type: entities
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: sensor.jackery_hs2c12600262hh4_solar_energy
+                name: 光伏累计总发电量
+              - entity: sensor.jackery_hs2c12600262hh4_battery_charge_energy
+                name: 储能电池累计充电量
+              - entity: sensor.jackery_hs2c12600262hh4_battery_discharge_energy
+                name: 储能电池累计放电量
+              - entity: sensor.jackery_hs2c12600262hh4_grid_import_energy
+                name: 电网总买电 (输入)
+              - entity: sensor.jackery_hs2c12600262hh4_grid_export_energy
+                name: 电网总馈网 (输出)
+              - entity: sensor.jackery_hs2c12600262hh4_eps_input_energy
+                name: EPS 接口总输入电量
+              - entity: sensor.jackery_hs2c12600262hh4_eps_output_energy
+                name: EPS 接口总输出负载电量
+      - type: grid
+        cards:
+          - type: custom:mushroom-title-card
+            title: 内部节点交叉路由统计
+            subtitle: 极为详尽的能量流向结算数据
+          - type: entities
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: sensor.jackery_hs2c12600262hh4_pv_to_battery_energy
+                name: 光伏直接充入电池
+                icon: mdi:solar-power-variant
+              - entity: sensor.jackery_hs2c12600262hh4_pv_to_ac_energy
+                name: 光伏直供给 AC 口
+                icon: mdi:solar-panel
+              - entity: sensor.jackery_hs2c12600262hh4_pv_to_grid_energy
+                name: 光伏直输给并网口
+                icon: mdi:transmission-tower-export
+              - entity: sensor.jackery_hs2c12600262hh4_ac_to_battery_energy
+                name: AC 口充电入电池
+                icon: mdi:battery-arrow-up
+              - entity: sensor.jackery_hs2c12600262hh4_ac_to_grid_energy
+                name: AC 口输出到并网口
+                icon: mdi:transmission-tower-export
+              - entity: sensor.jackery_hs2c12600262hh4_battery_to_ac_energy
+                name: 电池放电供给 AC 口
+                icon: mdi:battery-arrow-down
+              - entity: sensor.jackery_hs2c12600262hh4_battery_to_grid_energy
+                name: 电池放电到并网口
+                icon: mdi:transmission-tower-export
+              - entity: sensor.jackery_hs2c12600262hh4_grid_to_battery_energy
+                name: 并网口充电入电池
+                icon: mdi:battery-arrow-up
+              - entity: sensor.jackery_hs2c12600262hh4_grid_to_ac_load_energy
+                name: 并网口直接供给 AC
+                icon: mdi:home-import-outline
+      - type: grid
+        cards:
+          - type: custom:mushroom-title-card
+            title: 主设备 · 调试与原始状态
+            subtitle: HS2C12600262HH4 主机协议只读传感器（不含 CT / 插座）
+          - type: entities
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: sensor.jackery_hs2c12600262hh4_work_mode
+                name: 工作模式 (type=107)
+              - entity: sensor.jackery_hs2c12600262hh4_eps_state
+                name: EPS 运行状态 (0/1)
+              - entity: sensor.jackery_hs2c12600262hh4_eps_switch_status
+                name: EPS 开关状态位 (只读)
+              - entity: sensor.jackery_hs2c12600262hh4_max_output_power_ongrid
+                name: 并网功率限制 (只读传感器)
+              - entity: sensor.jackery_hs2c12600262hh4_soc_charge_limit
+                name: 充电上限 (只读)
+              - entity: sensor.jackery_hs2c12600262hh4_soc_discharge_limit
+                name: 放电下限 (只读)
+
+      - type: grid
+        columns: 1
+        cards:
+          - type: vertical-stack
+            cards:
+              - type: custom:mushroom-title-card
+                title: 子设备与智能配件
+                subtitle: type=101 自动发现 · 与主机实体分开展示（Jackery CT / Plug 独立设备）
+              - type: custom:mushroom-title-card
+                title: CT / 电表
+                subtitle: devType 2/3/4 · 功率与正反向电量
+              - type: custom:auto-entities
+                card:
+                  type: entities
+                  state_color: true
+                  show_header_toggle: true
+                card_param: entities
+                filter:
+                  include:
+                    - entity_id: "sensor.jackery_ct_*"
+                sort:
+                  method: entity_id
+                show_empty: false
+              - type: custom:mushroom-title-card
+                title: 智能插座
+                subtitle: devType 6 · 开关与功率/电量
+              - type: custom:auto-entities
+                card:
+                  type: entities
+                  state_color: true
+                  show_header_toggle: true
+                card_param: entities
+                filter:
+                  include:
+                    - entity_id: "switch.jackery_plug_*"
+                    - entity_id: "sensor.jackery_plug_*"
+                sort:
+                  method: entity_id
+                show_empty: false
+    header:
+      card:
+        type: markdown
+        content: |-
+          # 你好 {{ user }} 
+          JACKERY HomeAssistant✨
