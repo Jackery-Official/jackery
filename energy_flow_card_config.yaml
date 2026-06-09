@@ -17,7 +17,7 @@ entities:
     entity: sensor.jackery_home_power
     color_icon: true
   individual:
-    - entity: sensor.jackery_eps_output_power
+    - entity: sensor.jackery_ac_socket_power
       secondary_info: {}
       icon: mdi:power-plug
       name: EPS

@@ -140,11 +140,14 @@ config/
 
 2. **轮询阶段**（每 5 秒）：
    - 向 `hb/device/{sn}/action` 发送主机状态查询 (`type: 25`)
-   - 发送子设备查询 (`type: 100`，`devType=2` 电表 / `devType=6` 插座)
+   - 发送子设备查询 (`type: 100`，`devType=2` 同时获取 CT/电表采集头/电表；设备分条 type=101 上报)
 
 3. **数据处理**：
    - 接收 `status` / `event` 主题的 JSON 数据并合并进缓存
    - 解析字段（如 `batSoc`, `pvPw`、`stat`、`softver`、`deviceType` 等）
+   - 显式处理 `type: 107` 增量上报（`soc` → `batSoc`，`workMode` → `work_mode` 传感器）
+   - 兼容扁平 `status` 报文（无 `type`/`body` 包装时直接提取功率字段）
+   - 按 App 公式计算能量流（电网、家庭负载、AC Socket、电池净功率）
    - 转换数据单位（如温度 ×0.1、能量 ×0.01）
    - 更新所有关联的实体状态，并按需刷新设备型号 / 固件版本
 
@@ -184,6 +187,34 @@ config/
       "body": null
     }
     ```
+
+- **增量上报主题**: `hb/device/{sn}/event`（`type: 107`）
+  - 设备主动推送 SOC、工作模式等增量属性
+  - Payload 示例：
+    ```json
+    {
+      "type": 107,
+      "eventId": 0,
+      "messageId": 3984,
+      "ts": 1713337422,
+      "deviceType": 3,
+      "body": {
+        "soc": 12,
+        "workMode": 3
+      }
+    }
+    ```
+
+### 能量流计算公式
+
+| 维度 | 公式 | 主要 MQTT 字段 |
+|------|------|----------------|
+| 光伏 | `pvPw` | `pvPw` |
+| 并网口 | `gridInPw - gridOutPw`（回退 `inOngridPw - outOngridPw`） | `gridInPw`, `gridOutPw`, `inOngridPw`, `outOngridPw` |
+| 电网 | CT 优先；无 CT 时 `inGridSidePw - outGridSidePw` | `TphasePw`, `TnphasePw`, `inGridSidePw`, `outGridSidePw` |
+| AC Socket | `swEpsInPw > 0 ? swEpsInPw : swEpsOutPw` | `swEpsInPw`, `swEpsOutPw` |
+| 电池净功率 | `pv + ac + ong` | 计算字段 `calc_batt_net_power` |
+| 家庭负载 | `grid - ong`（含 CT 异常分支） | 计算字段 `calc_home_power` |
 
 ## 查看传感器
 

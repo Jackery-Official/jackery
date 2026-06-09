@@ -47,6 +47,130 @@ DEVICE_TYPE_MODEL_MAP = {
 }
 DEFAULT_MODEL = "Energy Monitor"
 
+# 扁平 status 报文识别字段（无 type/body 包装时）
+_FLAT_PAYLOAD_KEYS = frozenset(
+    {
+        "batSoc",
+        "soc",
+        "pvPw",
+        "stat",
+        "workMode",
+        "inOngridPw",
+        "outOngridPw",
+        "gridInPw",
+        "gridOutPw",
+        "inGridSidePw",
+        "outGridSidePw",
+        "swEpsInPw",
+        "swEpsOutPw",
+    }
+)
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    """将 MQTT 字段安全转换为 float."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_payload_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    """统一 MQTT 字段别名，便于缓存合并与能量流计算."""
+    result = dict(payload)
+
+    if "soc" in result and result.get("batSoc") is None:
+        result["batSoc"] = result["soc"]
+
+    if result.get("gridInPw") is None and result.get("gridBuyPw") is not None:
+        result["gridInPw"] = result["gridBuyPw"]
+    if result.get("gridOutPw") is None and result.get("gridSellPw") is not None:
+        result["gridOutPw"] = result["gridSellPw"]
+
+    return result
+
+
+def _extract_flat_body(raw_data: dict[str, Any]) -> dict[str, Any]:
+    """从扁平 status 报文中提取 body 字段."""
+    meta_keys = {
+        "type",
+        "eventId",
+        "messageId",
+        "ts",
+        "deviceType",
+        "token",
+        "softver",
+        "body",
+    }
+    if not any(key in raw_data for key in _FLAT_PAYLOAD_KEYS):
+        return {}
+    return {key: value for key, value in raw_data.items() if key not in meta_keys}
+
+
+# 子设备数组元素 devType（与 type=100/101 的 body.devType 查询范围不同）
+CT_ITEM_DEV_TYPES = frozenset({2, 3, 4})
+PLUG_ITEM_DEV_TYPES = frozenset({6})
+
+
+def _subdevice_sn(item: dict[str, Any]) -> str | None:
+    """提取子设备 SN."""
+    return item.get("deviceSn") or item.get("sn")
+
+
+def is_ct_item_dev_type(dev_type: int | None) -> bool:
+    """数组元素 devType 是否为 CT/电表采集头/电表家族."""
+    return dev_type in CT_ITEM_DEV_TYPES
+
+
+def subdevice_sensor_group(item: dict[str, Any], *, from_cts_array: bool = False) -> str:
+    """仅以数组元素 devType（及 cts 来源）判定传感器组，忽略 body.devType."""
+    if from_cts_array or is_ct_item_dev_type(item.get("devType")):
+        return "ct"
+    return "plug"
+
+
+def should_create_plug_switch(item: dict[str, Any]) -> bool:
+    """仅为智能插座创建 switch 实体."""
+    return item.get("devType") in PLUG_ITEM_DEV_TYPES
+
+
+def _merge_subdevice_list(
+    existing: list[dict[str, Any]] | None,
+    new_items: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """按 deviceSn 合并子设备列表，避免分条 type=101 互相覆盖."""
+    merged: dict[str, dict[str, Any]] = {}
+    for item in (existing or []) + new_items:
+        if not isinstance(item, dict):
+            continue
+        sn = _subdevice_sn(item)
+        if not sn:
+            continue
+        merged[sn] = {**merged.get(sn, {}), **item}
+    return list(merged.values())
+
+
+def _all_subdevices_from_cache(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """从缓存汇总全部子设备（plugs + cts 去重）."""
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for key in ("plugs", "plug", "cts"):
+        items = data.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            sn = _subdevice_sn(item)
+            if not sn or sn in seen:
+                continue
+            seen.add(sn)
+            result.append(item)
+    return result
+
+
 # 传感器配置
 SENSORS = {
     # 设备状态
@@ -58,6 +182,14 @@ SENSORS = {
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "options": list(DEVICE_STATUS_MAP.values()),
+    },
+    "work_mode": {
+        "json_key": "workMode",
+        "name": "Work Mode",
+        "unit": None,
+        "icon": "mdi:cog-outline",
+        "device_class": None,
+        "state_class": SensorStateClass.MEASUREMENT,
     },
     # 电池相关
     "battery_soc": {
@@ -251,10 +383,18 @@ SENSORS = {
         "state_class": SensorStateClass.MEASUREMENT,
     },
 
-    # EPS (离网输出)
+    # EPS / AC Socket（App 展示逻辑：swEpsInPw>0 取输入，否则取输出）
     "eps_output_power": {
-        "json_key": "swEpsOutPw",
-        "name": "EPS Output Power",
+        "json_key": "calc_ac_socket_power",
+        "name": "AC Socket Power",
+        "unit": UnitOfPower.WATT,
+        "icon": "mdi:power-plug",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "ac_socket_power": {
+        "json_key": "calc_ac_socket_power",
+        "name": "AC Socket Power (Calc)",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:power-plug",
         "device_class": SensorDeviceClass.POWER,
@@ -552,6 +692,10 @@ class JackeryDataCoordinator:
         self._topic_status_wildcard = f"{self._topic_root}/device/{sn_segment}/status"
         self._topic_event_wildcard = f"{self._topic_root}/device/{sn_segment}/event"
 
+    def _merge_normalized_cache(self, payload: dict[str, Any]) -> None:
+        """归一化字段别名后合并进主设备缓存."""
+        self._data_cache.update(_normalize_payload_fields(payload))
+
     def register_sensor(self, sensor_id: str, entity: "JackerySensor") -> None:
         """注册传感器实体."""
         self._sensors[sensor_id] = entity
@@ -644,12 +788,11 @@ class JackeryDataCoordinator:
                 # If body is missing or None, use empty dict or the raw_data itself if it looks like data
                 # But protocol says data is in body.
                 if body is None:
-                     # Some status messages might be flat? Assuming body per protocol.
-                     # If Type 101 and body is None, ignore.
-                     if msg_code == 101:
-                         return 
-                     body = {}
-                
+                    if msg_code == 101:
+                        return
+                    flat_body = _extract_flat_body(raw_data)
+                    body = flat_body if flat_body else {}
+
                 # Merge logic
                 # Type 23: Statistical/Energy Data
                 if msg_code == 23 and isinstance(body, dict):
@@ -661,8 +804,7 @@ class JackeryDataCoordinator:
                         or device_sn_in_body == self._device_sn
                         or device_sn_in_body == "system"
                     ):
-                        # Merge into main device cache
-                        self._data_cache.update(body)
+                        self._merge_normalized_cache(body)
                     else:
                         # Find and update sub-device in cache
                         # Search in plugs and cts
@@ -674,54 +816,92 @@ class JackeryDataCoordinator:
                                         item.update(body)
                                         break
 
+                # Type 107: 并网系统增量属性（soc、workMode）
+                elif msg_code == 107 and isinstance(body, dict):
+                    _LOGGER.debug(
+                        "Received type 107 incremental update for %s: %s",
+                        self._device_sn,
+                        body,
+                    )
+                    self._merge_normalized_cache(body)
+
                 # Type 101: Sub-device full data
                 elif msg_code == 101 and isinstance(body, dict):
-                    # Normalize sub-device payloads for plugs/sockets/CTs
-                    raw_plugs = body.get("plug") or body.get("plugs") or body.get("socket") or body.get("sockets") or []
+                    body_query_devtype = body.get("devType")
+                    raw_plugs = (
+                        body.get("plug")
+                        or body.get("plugs")
+                        or body.get("socket")
+                        or body.get("sockets")
+                        or []
+                    )
                     raw_cts = body.get("ct") or body.get("cts") or []
 
-                    current_cts = []
-                    current_plugs = []
-
-                    # Combine all sub-devices into a single list for discovery
-                    combined = []
+                    plug_items: list[dict[str, Any]] = []
                     if isinstance(raw_plugs, list):
                         for item in raw_plugs:
-                            if isinstance(item, dict) and item.get("devType") is None:
-                                item = {**item, "devType": 6}
-                            combined.append(item)
+                            if not isinstance(item, dict):
+                                continue
+                            entry = dict(item)
+                            if entry.get("devType") is None:
+                                entry["devType"] = 6
+                            plug_items.append(entry)
+
+                    ct_items: list[dict[str, Any]] = []
                     if isinstance(raw_cts, list):
                         for item in raw_cts:
                             if isinstance(item, dict):
-                                # Some CT payloads report devType=3, subType=2; normalize to devType=2
-                                sub_type = item.get("subType")
-                                if sub_type == 2:
-                                    item = {**item, "devType": 2}
-                                elif item.get("devType") is None:
-                                    item = {**item, "devType": 2}
-                            combined.append(item)
+                                ct_items.append(dict(item))
 
-                    for item in combined:
-                        if not isinstance(item, dict):
-                            continue
-                        dt = item.get("devType")
-                        if dt == 2:
-                            current_cts.append(item)
-                        else:
-                            current_plugs.append(item)
+                    existing_plugs = [
+                        p
+                        for p in (self._data_cache.get("plugs") or [])
+                        if isinstance(p, dict)
+                        and subdevice_sensor_group(p) == "plug"
+                    ]
+                    existing_cts = [
+                        p
+                        for p in (self._data_cache.get("cts") or [])
+                        if isinstance(p, dict)
+                    ]
+                    for p in (self._data_cache.get("plugs") or []):
+                        if (
+                            isinstance(p, dict)
+                            and is_ct_item_dev_type(p.get("devType"))
+                            and _subdevice_sn(p)
+                            and _subdevice_sn(p) not in {_subdevice_sn(c) for c in existing_cts}
+                        ):
+                            existing_cts.append(p)
 
-                    self._data_cache["cts"] = current_cts
-                    # Store all in "plugs" for JackeryPlugSensor to find itself by SN
-                    self._data_cache["plugs"] = combined
-                    self._data_cache["plug"] = combined  # Keep original key too
+                    self._data_cache["plugs"] = _merge_subdevice_list(existing_plugs, plug_items)
+                    self._data_cache["cts"] = _merge_subdevice_list(existing_cts, ct_items)
+                    self._data_cache["plug"] = self._data_cache["plugs"]
 
-                # Type 25 or Status: Main device data
-                elif isinstance(body, dict):
-                    # Merge top-level keys into cache to preserve fields not present in current message
-                    self._data_cache.update(body)
-                    
-                    # Special handling for isAutoStandby/autoStandby to ensure they are always available if ever seen
-                    # (Optional: can add more critical fields here if needed)
+                    _LOGGER.info(
+                        "type=101 body.devType=%s (query category): plugs=%d cts=%d",
+                        body_query_devtype,
+                        len(self._data_cache["plugs"]),
+                        len(self._data_cache["cts"]),
+                    )
+                    for item in plug_items:
+                        _LOGGER.debug(
+                            "  plug %s item.devType=%s commState=%s",
+                            _subdevice_sn(item),
+                            item.get("devType"),
+                            item.get("commState"),
+                        )
+                    for item in ct_items:
+                        _LOGGER.debug(
+                            "  ct %s item.devType=%s subType=%s commState=%s → group=ct",
+                            _subdevice_sn(item),
+                            item.get("devType"),
+                            item.get("subType"),
+                            item.get("commState"),
+                        )
+
+                # Type 25 or other main device payloads
+                elif isinstance(body, dict) and body:
+                    self._merge_normalized_cache(body)
 
             except json.JSONDecodeError:
                 _LOGGER.warning(f"Invalid JSON payload on {topic}")
@@ -741,18 +921,13 @@ class JackeryDataCoordinator:
 
     def _check_for_new_plugs(self, data: dict) -> None:
         """检查并同步插座/CT（添加新设备；离线子设备标记 Unavailable）."""
-        # Check both keys
-        plugs = data.get("plugs") or data.get("plug")
-        if not plugs or not isinstance(plugs, list):
-            plugs = data.get("cts") if isinstance(data.get("cts"), list) else None
-        
-        # 如果数据中根本没有 plugs/cts 字段，不做处理
-        if plugs is None:
+        subdevices = _all_subdevices_from_cache(data)
+        if not subdevices and data.get("plugs") is None and data.get("cts") is None:
             return
 
         current_sns = set()
-        for plug in plugs:
-            sn = plug.get("deviceSn") or plug.get("sn")
+        for item in subdevices:
+            sn = _subdevice_sn(item)
             if sn:
                 current_sns.add(sn)
         
@@ -786,21 +961,29 @@ class JackeryDataCoordinator:
                 self._set_subdevice_available(sn, False)
 
         # 3. 处理新增
+        ct_sns = {
+            sn
+            for item in (data.get("cts") or [])
+            if isinstance(item, dict) and (sn := _subdevice_sn(item))
+        }
         new_entities = []
         new_switch_entities = []
-        for plug in plugs:
-            sn = plug.get("deviceSn") or plug.get("sn")
-            dev_type = plug.get("devType")
-            if dev_type is None and plug.get("subType") == 2:
-                dev_type = 2
-            
+        for item in subdevices:
+            sn = _subdevice_sn(item)
+            dev_type = item.get("devType")
+            from_cts = sn in ct_sns if sn else False
+
             if sn and sn not in self._known_plugs:
-                _LOGGER.info(f"Discovered new sub-device: {sn} (Type: {dev_type})")
+                sensor_group = subdevice_sensor_group(item, from_cts_array=from_cts)
+                _LOGGER.info(
+                    "Discovered new sub-device: %s (item.devType=%s, group=%s)",
+                    sn,
+                    dev_type,
+                    sensor_group,
+                )
                 self._known_plugs.add(sn)
-                
+
                 if hasattr(self, "config_entry_id"):
-                    # Create Sensors defined in SUBDEVICE_SENSORS
-                    sensor_group = "ct" if dev_type == 2 else "plug"
                     group_config = SUBDEVICE_SENSORS.get(sensor_group, {})
 
                     for sensor_key, sensor_cfg in group_config.items():
@@ -810,17 +993,18 @@ class JackeryDataCoordinator:
                             sensor_key=sensor_key,
                             sensor_config=sensor_cfg,
                             coordinator=self,
-                            config_entry_id=self.config_entry_id
+                            config_entry_id=self.config_entry_id,
+                            sensor_group=sensor_group,
                         )
                         new_entities.append(entity)
 
-                    if dev_type != 2:
+                    if should_create_plug_switch(item):
                         from .switch import JackeryPlugSwitch
                         switch_entity = JackeryPlugSwitch(
                             plug_sn=sn,
                             dev_type=dev_type,
                             coordinator=self,
-                            config_entry_id=self.config_entry_id
+                            config_entry_id=self.config_entry_id,
                         )
                         new_switch_entities.append(switch_entity)
 
@@ -831,13 +1015,7 @@ class JackeryDataCoordinator:
 
     def get_subdevices(self) -> list[dict[str, Any]]:
         """Return latest sub-device list from cache."""
-        plugs = self._data_cache.get("plugs") or self._data_cache.get("plug")
-        if isinstance(plugs, list):
-            return [p for p in plugs if isinstance(p, dict)]
-        cts = self._data_cache.get("cts")
-        if isinstance(cts, list):
-            return [p for p in cts if isinstance(p, dict)]
-        return []
+        return _all_subdevices_from_cache(self._data_cache)
 
     async def async_control_subdevice_switch(self, plug_sn: str, dev_type: int, is_on: bool) -> None:
         """Control sub-device switch via type 103."""
@@ -967,54 +1145,56 @@ class JackeryDataCoordinator:
 
     def _calculate_energy_flow(self, data: dict) -> dict:
         """
-        根据用户需求计算能量流数据.
-        
-        Variables Mapping:
-        - PV: pvPw
-        - OngridCharge: inOngridPw
-        - OngridSupply: outOngridPw
-        - ACIn: swEpsInPw
-        - ACOut: swEpsOutPw
-        - GridBuy: (Need Key, assuming 'gridBuyPw' or similar, else None)
-        - GridSell: (Need Key, assuming 'gridSellPw', else None)
+        按 App 端公式计算能量流数据.
+
+        Grid: inGridSidePw - outGridSidePw，异常时回退 gridInPw - gridOutPw
+        Ongrid: gridInPw - gridOutPw（回退 inOngridPw - outOngridPw）
+        AC Socket: swEpsInPw > 0 ? swEpsInPw : swEpsOutPw
+        Battery: pv + ac + ong
+        Home: grid - ong（有 CT 时保留异常分支）
         """
         try:
             # 1. PV
-            # Handle dict for PV if necessary (copied from sensor logic)
             pv_val = data.get("pvPw", 0)
             if isinstance(pv_val, dict):
-                pv = float(pv_val.get("pvPw", 0) or pv_val.get("w", 0) or pv_val.get("power", 0))
+                pv = _safe_float(
+                    pv_val.get("pvPw") or pv_val.get("w") or pv_val.get("power")
+                )
             else:
-                pv = float(pv_val)
+                pv = _safe_float(pv_val)
 
-            # 2. Ongrid
-            ongrid_charge = float(data.get("inOngridPw", 0))
-            ongrid_supply = float(data.get("outOngridPw", 0))
-            p_ong = ongrid_charge - ongrid_supply # 流入主机为正
+            # 2. 并网口功率（App: gridInPw - gridOutPw）
+            grid_in = _safe_float(data.get("gridInPw"))
+            grid_out = _safe_float(data.get("gridOutPw"))
+            ongrid_charge = _safe_float(data.get("inOngridPw"))
+            ongrid_supply = _safe_float(data.get("outOngridPw"))
+            if grid_in or grid_out:
+                p_ong = grid_in - grid_out
+            else:
+                p_ong = ongrid_charge - ongrid_supply
 
-            # 3. ACSocket (EPS)
-            ac_in = float(data.get("swEpsInPw", 0))
-            ac_out = float(data.get("swEpsOutPw", 0))
-            p_ac = ac_in - ac_out # 流入主机为正
+            # 3. AC Socket
+            ac_in = _safe_float(data.get("swEpsInPw"))
+            ac_out = _safe_float(data.get("swEpsOutPw"))
+            p_ac = ac_in - ac_out
+            ac_socket = ac_in if ac_in > 0 else ac_out
 
-            # 4. Grid (Meter)
-            # 优先从 'cts' 数组中提取 CT 数据 (Smart CT Meter)
-            # cts item: { ..., "TphasePw": <Import>, "TnphasePw": <Export>, "commState": 1/0, ... }
+            # 4. 电网侧端口（App: inGridSidePw - outGridSidePw）
+            in_grid_side = _safe_float(data.get("inGridSidePw"))
+            out_grid_side = _safe_float(data.get("outGridSidePw"))
+
+            # 5. CT 电表（优先）
             grid_available = False
             grid_buy = 0.0
             grid_sell = 0.0
-            
+            ct_available = False
+
             cts = data.get("cts")
             if cts and isinstance(cts, list) and len(cts) > 0:
-                # 尝试获取第一个 CT 数据
                 ct_data = cts[0]
-                # 检查通讯状态 (如果 commState 存在且为 0 可能表示离线，视具体协议而定，这里暂定只要有数据即可)
-                # TphasePw: 总正向有功 (Grid Buy)
-                # TnphasePw: 总负向有功 (Grid Sell)
                 t_phase_pw = ct_data.get("TphasePw") or ct_data.get("tPhasePw")
                 tn_phase_pw = ct_data.get("TnphasePw") or ct_data.get("tnPhasePw")
 
-                # Fallback: if total phase missing, sum A/B/C
                 if t_phase_pw is None:
                     a_pw = ct_data.get("AphasePw") or ct_data.get("aPhasePw") or 0
                     b_pw = ct_data.get("BphasePw") or ct_data.get("bPhasePw") or 0
@@ -1030,77 +1210,81 @@ class JackeryDataCoordinator:
                         tn_phase_pw = float(an_pw) + float(bn_pw) + float(cn_pw)
 
                 if t_phase_pw is not None or tn_phase_pw is not None:
-                    grid_buy = float(t_phase_pw or 0)
-                    grid_sell = float(tn_phase_pw or 0)
+                    grid_buy = _safe_float(t_phase_pw)
+                    grid_sell = _safe_float(tn_phase_pw)
                     grid_available = True
-            
-            # 兼容旧逻辑或直接字段 (如果 cts 不存在)
-            if not grid_available:
-                grid_buy_raw = data.get("gridBuyPw") or data.get("gridInPw")
-                grid_sell_raw = data.get("gridSellPw") or data.get("gridOutPw")
-                if grid_buy_raw is not None and grid_sell_raw is not None:
-                    grid_available = True
-                    grid_buy = float(grid_buy_raw)
-                    grid_sell = float(grid_sell_raw)
+                    ct_available = True
 
-            # Calculate P_grid
-            p_grid = None
+            if not grid_available and (
+                data.get("gridInPw") is not None or data.get("gridOutPw") is not None
+            ):
+                grid_buy = grid_in
+                grid_sell = grid_out
+                grid_available = True
+
+            # 6. 计算电网净功率
+            p_grid = 0.0
             if grid_available:
                 p_grid = grid_buy - grid_sell
-                
-                # 🔴异常流程（仅当电表可用且并网口处于充电态时生效）
-                # GridAvailable=true 且 GridBuy < OngridCharge 且 (OngridCharge - GridBuy) <= 50W
-                if grid_buy < ongrid_charge and (ongrid_charge - grid_buy) <= 50:
+                if ct_available and grid_buy < ongrid_charge and (ongrid_charge - grid_buy) <= 50:
                     p_grid = p_ong
+            elif in_grid_side or out_grid_side:
+                grid_available = True
+                p_grid = in_grid_side - out_grid_side
+                if (
+                    in_grid_side < grid_in
+                    and data.get("gridInPw") is not None
+                    and (grid_in - in_grid_side) <= 50
+                ):
+                    p_grid = grid_in - grid_out
+            elif grid_in or grid_out:
+                grid_available = True
+                p_grid = grid_in - grid_out
+            elif ongrid_charge or ongrid_supply:
+                grid_available = True
+                p_grid = p_ong
 
-            # 5. Battery (Calculated)
-            # P_batt = P_pv + P_ac + P_ong
+            # 7. 电池净功率
             p_batt = pv + p_ac + p_ong
 
-            # 6. Home (Calculated)
+            # 8. 家庭负载
             p_home = 0.0
-            
-            if p_grid is not None:
-                # 电表可用
+            if grid_available:
                 p_home = p_grid - p_ong
-                
-                # 🔴 异常分支 1
-                if grid_buy > 0 and ongrid_charge > 0 and grid_buy < ongrid_charge and (ongrid_charge - grid_buy) <= 50:
-                    # p_grid = p_ong # Already handled in p_grid calc above? 
-                    # Note: User spec says "P_grid = P_ong (按异常流程先修正); P_home = 0"
-                    # My P_grid calc above handled P_grid. Now P_home:
-                    p_home = 0.0
 
-                # 🔴 异常分支 2
-                elif grid_buy > 0 and ongrid_charge > 0 and grid_buy < ongrid_charge and (ongrid_charge - grid_buy) > 50:
-                    p_home = ongrid_charge - grid_buy
+                if ct_available:
+                    if (
+                        grid_buy > 0
+                        and ongrid_charge > 0
+                        and grid_buy < ongrid_charge
+                        and (ongrid_charge - grid_buy) <= 50
+                    ):
+                        p_home = 0.0
+                    elif (
+                        grid_buy > 0
+                        and ongrid_charge > 0
+                        and grid_buy < ongrid_charge
+                        and (ongrid_charge - grid_buy) > 50
+                    ):
+                        p_home = ongrid_charge - grid_buy
+                    elif grid_sell > 0 and ongrid_supply > 0:
+                        p_home = grid_sell - ongrid_supply
+                    elif grid_sell > 0 and ongrid_charge > 0:
+                        p_home = grid_sell + ongrid_charge
+            elif ongrid_supply > 0:
+                p_home = ongrid_supply
 
-                # 🔴 馈网场景分支 A
-                elif grid_sell > 0 and ongrid_supply > 0:
-                    p_home = grid_sell - ongrid_supply
-
-                # 🔴 馈网场景分支 B
-                elif grid_sell > 0 and ongrid_charge > 0:
-                    p_home = grid_sell + ongrid_charge
-            
-            else:
-                # 电表不可用 (No CT)
-                if ongrid_supply > 0:
-                    p_home = ongrid_supply
-                else:
-                    p_home = 0.0
-
-            # Store calculated values
+            data["calc_ac_socket_power"] = ac_socket
             data["calc_home_power"] = p_home
             data["calc_batt_net_power"] = p_batt
             data["calc_battery_charge_power"] = max(0.0, p_batt)
             data["calc_battery_discharge_power"] = max(0.0, -p_batt)
             data["grid_available"] = grid_available
-            data["calc_grid_net_power"] = p_grid if grid_available else None
+            data["calc_grid_net_power"] = p_grid
 
         except Exception as e:
             _LOGGER.error(f"Error calculating energy flow: {e}")
-            
+
         return data
 
     def _distribute_data(self, data: dict) -> None:
@@ -1185,32 +1369,30 @@ class JackeryDataCoordinator:
                 except Exception as e:
                     _LOGGER.warning(f"Error polling device status (Type 25): {e}")
 
-                # 2. Poll Sub-devices (Type 100) - CTs (2) and Plugs (6)
+                # 2. Poll Sub-devices (Type 100) - devType=2 同时获取 CT/电表采集头/电表
                 try:
-                    for dev_type in [2, 6]:
-                        payload_100 = {
-                            "type": 100,
-                            "eventId": 0,
-                            "messageId": random.randint(1000, 9999),
-                            "ts": ts,
-                            "token": self._token,
-                            "body": {
-                                "devType": dev_type
-                            }
-                        }
+                    payload_100 = {
+                        "type": 100,
+                        "eventId": 0,
+                        "messageId": random.randint(1000, 9999),
+                        "ts": ts,
+                        "token": self._token,
+                        "body": {
+                            "devType": 2
+                        },
+                    }
 
-                        await ha_mqtt.async_publish(
-                            self.hass,
-                            action_topic,
-                            json.dumps(payload_100),
-                            0,
-                            False
-                        )
-                        await asyncio.sleep(0.5) # Avoid spamming too fast
+                    await ha_mqtt.async_publish(
+                        self.hass,
+                        action_topic,
+                        json.dumps(payload_100),
+                        0,
+                        False,
+                    )
                 except Exception as e:
                     _LOGGER.warning(f"Error polling sub-devices (Type 100): {e}")
-                
-                _LOGGER.debug(f"Sent poll requests (25 & 100 [2,6]) to {action_topic}")
+
+                _LOGGER.debug(f"Sent poll requests (25 & 100 [2]) to {action_topic}")
 
                 await asyncio.sleep(REQUEST_INTERVAL)
 
@@ -1309,24 +1491,11 @@ class JackerySensor(SensorEntity):
 
     def _update_from_coordinator(self, data: dict) -> None:
         """Receive data from coordinator."""
-        # Special handling for EPS Output Power (Bidirectional)
-        if self._sensor_id == "eps_output_power":
-            out_p = float(data.get("swEpsOutPw", 0))
-            in_p = float(data.get("swEpsInPw", 0))
-            self._attr_native_value = out_p - in_p
-            self._attr_available = True
-            self.async_write_ha_state()
-            return
-
         json_key = self._config.get("json_key")
         if not json_key or json_key not in data:
             return
 
         value = data[json_key]
-
-        if self._sensor_id == "grid_net_power" and value is None:
-            # Keep last value when CT data is temporarily missing
-            return
 
         # Process specific conversions
         if self._sensor_id == "device_status":
@@ -1381,6 +1550,7 @@ class JackerySubDeviceSensor(SensorEntity):
         sensor_config: dict,
         coordinator: JackeryDataCoordinator,
         config_entry_id: str,
+        sensor_group: str = "plug",
     ) -> None:
         """Initialize."""
         self._plug_sn = plug_sn
@@ -1388,12 +1558,9 @@ class JackerySubDeviceSensor(SensorEntity):
         self._sensor_key = sensor_key
         self._sensor_config = sensor_config
         self._coordinator = coordinator
-        
-        # Determine Device Name based on Type
-        if self._dev_type == 2:
-            device_name = "CT"
-        else:
-            device_name = "Plug"
+        self._sensor_group = sensor_group
+
+        device_name = "CT" if sensor_group == "ct" else "Plug"
 
         # Entity Name: "Power", "Energy", etc.
         self._attr_name = self._sensor_config["name"]
@@ -1431,7 +1598,7 @@ class JackerySubDeviceSensor(SensorEntity):
 
     def _update_from_coordinator(self, data: dict) -> None:
         """Receive data from coordinator."""
-        if self._dev_type == 2:
+        if self._sensor_group == "ct":
             plugs = data.get("cts")
         else:
             plugs = data.get("plugs") or data.get("plug")
@@ -1450,7 +1617,7 @@ class JackerySubDeviceSensor(SensorEntity):
         val = my_plug.get(target_key)
 
         # CT phase mapping by subType (1=A, 2=B, 3=C, 4=Total)
-        if self._dev_type == 2 and target_key in {"phasePw", "phaseEgy"}:
+        if self._sensor_group == "ct" and target_key in {"phasePw", "phaseEgy"}:
             sub_type = my_plug.get("subType")
             if target_key == "phasePw":
                 if sub_type == 1:

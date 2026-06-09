@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import DOMAIN
+from .sensor import should_create_plug_switch
 
 if TYPE_CHECKING:
     from .sensor import JackeryDataCoordinator
@@ -51,13 +52,11 @@ async def async_setup_entry(
         ]
     )
 
-    # Add any existing sub-devices as switches (non-CT)
+    # Add any existing sub-devices as switches (smart plugs only)
     for item in coordinator.get_subdevices():
         sn = item.get("deviceSn") or item.get("sn")
         dev_type = item.get("devType")
-        if dev_type is None and item.get("subType") == 2:
-            dev_type = 2
-        if sn and dev_type != 2:
+        if sn and should_create_plug_switch(item):
             entities.append(
                 JackeryPlugSwitch(
                     plug_sn=sn,
