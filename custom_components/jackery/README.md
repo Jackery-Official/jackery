@@ -13,7 +13,16 @@
 集成提供以下丰富的传感器数据：
 
 #### 📊 设备状态
-- **Status** (运行状态：normal / waiting / alarm / fault / standby，对应 `stat` 0-4)
+- **Status** (运行状态：normal / waiting / alarm / fault / standby / low_power，对应 `stat` 0-5)
+
+#### 🌐 并网系统状态（type=106 全量属性）
+- **OnGrid Status** (并网状态 `ongridStat`：on_grid / off_grid)
+- **CT Status** (CT 工作状态 `ctStat`：online / offline)
+- **Grid Meter Link** (智能 CT / 读表器连接 `gridSate`：normal / abnormal)
+- **Other Load Power** (默认负载功率 `otherLoadPw`) - 单位：W
+- **Max Feed-in Grid Power** (最大馈网功率 `maxFeedGrid`，只读) - 单位：W
+- **Function Enable** (功能使能位 `funcEnable`，属性 `func_enable_flags` 含 bit0~bit11 解码)
+- **Work Mode** (系统工作模式 `workModel`/`workMode` 0-7)
 
 #### 🔋 电池信息
 - **Battery SOC** (电池电量) - 单位：%
@@ -139,12 +148,14 @@ config/
    - 非本机的报文会被直接忽略
 
 2. **轮询阶段**（每 5 秒）：
-   - 向 `hb/device/{sn}/action` 发送主机状态查询 (`type: 25`)
+   - 向 `hb/device/{sn}/action` 发送主机状态查询 (`type: 25`，单设备级)
+   - 发送并网系统全量查询 (`type: 105`，`body: null`；设备以 `type: 106` 响应系统全量属性)
    - 发送子设备查询 (`type: 100`，`devType=2` 同时获取 CT/电表采集头/电表；设备分条 type=101 上报)
 
 3. **数据处理**：
    - 接收 `status` / `event` 主题的 JSON 数据并合并进缓存
    - 解析字段（如 `batSoc`, `pvPw`、`stat`、`softver`、`deviceType` 等）
+   - 显式处理 `type: 106` 系统全量上报（`workModel` → `workMode`，并网/CT/读表器状态等）
    - 显式处理 `type: 107` 增量上报（`soc` → `batSoc`，`workMode` → `work_mode` 传感器）
    - 兼容扁平 `status` 报文（无 `type`/`body` 包装时直接提取功率字段）
    - 按 App 公式计算能量流（电网、家庭负载、AC Socket、电池净功率）

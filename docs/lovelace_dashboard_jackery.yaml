@@ -238,6 +238,27 @@ views:
       - type: grid
         cards:
           - type: custom:mushroom-title-card
+            title: 并网系统状态
+            subtitle: type=105/106 系统全量属性
+          - type: entities
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: sensor.jackery_hs2c12600262hh4_ongrid_status
+                name: 并网状态 (ongridStat)
+              - entity: sensor.jackery_hs2c12600262hh4_ct_status
+                name: CT 工作状态 (ctStat)
+              - entity: sensor.jackery_hs2c12600262hh4_grid_meter_link
+                name: CT/读表器连接 (gridSate)
+              - entity: sensor.jackery_hs2c12600262hh4_other_load_power
+                name: 默认负载功率 (otherLoadPw)
+              - entity: sensor.jackery_hs2c12600262hh4_max_feed_in_grid_power
+                name: 最大馈网功率 (maxFeedGrid)
+              - entity: sensor.jackery_hs2c12600262hh4_function_enable
+                name: 功能使能位 (funcEnable)
+      - type: grid
+        cards:
+          - type: custom:mushroom-title-card
             title: 主设备 · 调试与原始状态
             subtitle: HS2C12600262HH4 主机协议只读传感器（不含 CT / 插座）
           - type: entities
@@ -245,7 +266,7 @@ views:
             state_color: true
             entities:
               - entity: sensor.jackery_hs2c12600262hh4_work_mode
-                name: 工作模式 (type=107)
+                name: 工作模式 (type=106/107)
               - entity: sensor.jackery_hs2c12600262hh4_eps_state
                 name: EPS 运行状态 (0/1)
               - entity: sensor.jackery_hs2c12600262hh4_eps_switch_status

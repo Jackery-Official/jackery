@@ -32,11 +32,33 @@ REAUTH_HINT_TIMEOUT = 120
 
 # 主机运行状态映射（stat 字段）
 DEVICE_STATUS_MAP = {
-    0: "normal",   # 正常
-    1: "waiting",  # 等待
-    2: "alarm",    # 告警
-    3: "fault",    # 故障
-    4: "standby",  # 待机
+    0: "normal",       # 正常
+    1: "waiting",      # 等待
+    2: "alarm",        # 告警
+    3: "fault",        # 故障
+    4: "standby",      # 待机
+    5: "low_power",    # 低功耗
+}
+
+# 并网系统状态字段映射（type=106 全量属性）
+ONGRID_STATUS_MAP = {0: "off_grid", 1: "on_grid"}        # ongridStat：1并网 0离网
+CT_STATUS_MAP = {0: "offline", 1: "online"}              # ctStat：1在线 0离线
+GRID_METER_LINK_MAP = {0: "abnormal", 1: "normal"}       # gridSate：1正常 0异常
+
+# funcEnable 功能使能位（bit -> 名称），每个 bit 为 1 使能、0 不使能
+FUNC_ENABLE_BITS = {
+    0: "aerosol",            # bit0 气溶胶
+    1: "soc_calibration",    # bit1 SOC 校准
+    2: "low_power",          # bit2 低功耗
+    3: "soh_calibration",    # bit3 SOH 校准
+    4: "pcs_comm_diag",      # bit4 PCS 通信故障诊断
+    5: "shutdown_2h",        # bit5 2H 关机
+    6: "fault_shutdown",     # bit6 故障关机
+    7: "epo",                # bit7 EPO 功能
+    8: "func_48v",           # bit8 48V 功能
+    9: "ethernet_debug",     # bit9 以太网 debug 功能
+    10: "energy_flow_fill",  # bit10 能量流数据补传功能
+    11: "smart_plug_first",  # bit11 智能插座优先
 }
 
 # deviceType -> 设备型号名称映射（用于设备详情展示），未命中则回退 "Energy Monitor"
@@ -89,6 +111,10 @@ def _normalize_payload_fields(payload: dict[str, Any]) -> dict[str, Any]:
         result["gridInPw"] = result["gridBuyPw"]
     if result.get("gridOutPw") is None and result.get("gridSellPw") is not None:
         result["gridOutPw"] = result["gridSellPw"]
+
+    # 系统全量报文 type=106 使用 workModel，增量 type=107 使用 workMode，统一到 workMode
+    if result.get("workMode") is None and result.get("workModel") is not None:
+        result["workMode"] = result["workModel"]
 
     return result
 
@@ -308,6 +334,61 @@ SENSORS = {
         "icon": "mdi:cog-outline",
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
+    },
+    # 并网系统状态（type=106 全量属性）
+    "ongrid_status": {
+        "json_key": "ongridStat",
+        "name": "OnGrid Status",
+        "unit": None,
+        "icon": "mdi:transmission-tower",
+        "device_class": SensorDeviceClass.ENUM,
+        "state_class": None,
+        "options": list(ONGRID_STATUS_MAP.values()),
+        "value_map": ONGRID_STATUS_MAP,
+    },
+    "ct_status": {
+        "json_key": "ctStat",
+        "name": "CT Status",
+        "unit": None,
+        "icon": "mdi:current-ac",
+        "device_class": SensorDeviceClass.ENUM,
+        "state_class": None,
+        "options": list(CT_STATUS_MAP.values()),
+        "value_map": CT_STATUS_MAP,
+    },
+    "grid_meter_link": {
+        "json_key": "gridSate",
+        "name": "Grid Meter Link",
+        "unit": None,
+        "icon": "mdi:lan-connect",
+        "device_class": SensorDeviceClass.ENUM,
+        "state_class": None,
+        "options": list(GRID_METER_LINK_MAP.values()),
+        "value_map": GRID_METER_LINK_MAP,
+    },
+    "other_load_power": {
+        "json_key": "otherLoadPw",
+        "name": "Other Load Power",
+        "unit": UnitOfPower.WATT,
+        "icon": "mdi:home-lightning-bolt-outline",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "max_feed_grid_power": {
+        "json_key": "maxFeedGrid",
+        "name": "Max Feed-in Grid Power",
+        "unit": UnitOfPower.WATT,
+        "icon": "mdi:transmission-tower-export",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "func_enable": {
+        "json_key": "funcEnable",
+        "name": "Function Enable",
+        "unit": None,
+        "icon": "mdi:tune-variant",
+        "device_class": None,
+        "state_class": None,
     },
     # 电池相关
     "battery_soc": {
@@ -933,6 +1014,15 @@ class JackeryDataCoordinator:
                                     if item.get("sn") == device_sn_in_body or item.get("deviceSn") == device_sn_in_body:
                                         item.update(body)
                                         break
+
+                # Type 106: 并网系统全量属性（type=105 查询的响应）
+                elif msg_code == 106 and isinstance(body, dict):
+                    _LOGGER.info(
+                        "Received type 106 system full data for %s (%d fields)",
+                        self._device_sn,
+                        len(body),
+                    )
+                    self._merge_normalized_cache(body)
 
                 # Type 107: 并网系统增量属性（soc、workMode）
                 elif msg_code == 107 and isinstance(body, dict):
@@ -1560,6 +1650,27 @@ class JackeryDataCoordinator:
                 except Exception as e:
                     _LOGGER.warning(f"Error polling device status (Type 25): {e}")
 
+                # 1b. Poll System Full Data (Type 105) - 并网系统全量属性（设备以 type=106 响应）
+                try:
+                    payload_105 = {
+                        "type": 105,
+                        "eventId": 0,
+                        "messageId": random.randint(1000, 9999),
+                        "ts": ts,
+                        "token": self._token,
+                        "body": None,
+                    }
+
+                    await ha_mqtt.async_publish(
+                        self.hass,
+                        action_topic,
+                        json.dumps(payload_105),
+                        0,
+                        False,
+                    )
+                except Exception as e:
+                    _LOGGER.warning(f"Error polling system full data (Type 105): {e}")
+
                 # 2. Poll Sub-devices (Type 100) - devType=2 CT 家族；devType=6 智能插座
                 for poll_dev_type in (2, 6):
                     try:
@@ -1588,7 +1699,7 @@ class JackeryDataCoordinator:
                         )
 
                 _LOGGER.debug(
-                    "Sent poll requests (25 & 100 [2,6]) to %s", action_topic
+                    "Sent poll requests (25 & 105 & 100 [2,6]) to %s", action_topic
                 )
 
                 await asyncio.sleep(REQUEST_INTERVAL)
@@ -1695,11 +1806,18 @@ class JackerySensor(SensorEntity):
         value = data[json_key]
 
         # Process specific conversions
+        value_map = self._config.get("value_map")
         if self._sensor_id == "device_status":
             try:
                 self._attr_native_value = DEVICE_STATUS_MAP.get(int(value))
             except (TypeError, ValueError):
                 self._attr_native_value = None
+        elif value_map is not None:
+            # 通用枚举映射（如 ongridStat/ctStat/gridSate），未命中保留原始值
+            try:
+                self._attr_native_value = value_map.get(int(value), value)
+            except (TypeError, ValueError):
+                self._attr_native_value = value
         elif self._sensor_id == "battery_temperature":
             # cellTemp is 0.1 C
             try:
@@ -1730,10 +1848,23 @@ class JackerySensor(SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return {
+        attrs: dict[str, Any] = {
             "device_sn": self._coordinator._device_sn,
-            "raw_key": self._config.get("json_key")
+            "raw_key": self._config.get("json_key"),
         }
+        # funcEnable 按 bit 解码功能使能位，便于排查
+        if self._sensor_id == "func_enable":
+            raw = self._coordinator._data_cache.get("funcEnable")
+            try:
+                bits = int(raw)
+                attrs["func_enable_raw"] = bits
+                attrs["func_enable_flags"] = {
+                    name: bool(bits & (1 << bit))
+                    for bit, name in FUNC_ENABLE_BITS.items()
+                }
+            except (TypeError, ValueError):
+                pass
+        return attrs
 
 
 class JackerySubDeviceSensor(SensorEntity):
