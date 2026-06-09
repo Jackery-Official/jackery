@@ -266,37 +266,39 @@ views:
               - type: custom:mushroom-title-card
                 title: 子设备与智能配件
                 subtitle: type=101 自动发现 · 与主机实体分开展示（Jackery CT / Plug 独立设备）
-              - type: custom:mushroom-title-card
+              - type: entities
                 title: CT / 电表
-                subtitle: devType 2/3/4 · 功率与正反向电量
-              - type: custom:auto-entities
-                card:
-                  type: entities
-                  state_color: true
-                  show_header_toggle: true
-                card_param: entities
-                filter:
-                  include:
-                    - entity_id: "sensor.jackery_ct_*"
-                sort:
-                  method: entity_id
-                show_empty: false
-              - type: custom:mushroom-title-card
+                state_color: true
+                show_header_toggle: true
+                entities:
+                  - type: section
+                    label: Shelly Pro EM50 · 841fe891ba44 (devType=3 · A相)
+                  - entity: sensor.jackery_ct_841fe891ba44_power
+                    name: 实时功率
+                    secondary_info: last-changed
+                  - entity: sensor.jackery_ct_841fe891ba44_forward_energy
+                    name: 正向电量 (购电)
+                  - entity: sensor.jackery_ct_841fe891ba44_reverse_energy
+                    name: 反向电量 (馈网)
+              - type: entities
                 title: 智能插座
-                subtitle: devType 6 · 开关与功率/电量
-              - type: custom:auto-entities
-                card:
-                  type: entities
-                  state_color: true
-                  show_header_toggle: true
-                card_param: entities
-                filter:
-                  include:
-                    - entity_id: "switch.jackery_plug_*"
-                    - entity_id: "sensor.jackery_plug_*"
-                sort:
-                  method: entity_id
-                show_empty: false
+                state_color: true
+                show_header_toggle: true
+                entities:
+                  - type: section
+                    label: Shelly Plug · 9070694adb4c (devType=6)
+                  - type: custom:mushroom-entity-card
+                    entity: switch.jackery_plug_9070694adb4c_switch
+                    name: 插座开关 (type=103)
+                    icon_color: amber
+                    layout: horizontal
+                    tap_action:
+                      action: toggle
+                    secondary_info: state
+                  - entity: sensor.jackery_plug_9070694adb4c_power
+                    name: 实时功率
+                  - entity: sensor.jackery_plug_9070694adb4c_energy
+                    name: 累计电量
     header:
       card:
         type: markdown

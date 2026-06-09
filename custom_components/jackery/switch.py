@@ -120,14 +120,14 @@ class JackeryPlugSwitch(SwitchEntity):
             return
 
         self._raw_data = dict(my_plug)
+        self._attr_available = True
+
         val = my_plug.get("sysSwitch")
         if val is None:
             val = my_plug.get("switchSta")
-        if val is None:
-            return
+        if val is not None:
+            self._attr_is_on = bool(int(val))
 
-        self._attr_is_on = bool(int(val))
-        self._attr_available = True
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs: Any) -> None:
@@ -146,10 +146,17 @@ class JackeryPlugSwitch(SwitchEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        raw = self._raw_data or {}
         return {
             "plug_sn": self._plug_sn,
             "dev_type": self._dev_type,
-            "raw_data": self._raw_data,
+            "commState": raw.get("commState"),
+            "scanName": raw.get("scanName") or raw.get("name"),
+            "switchSta": raw.get("switchSta"),
+            "sysSwitch": raw.get("sysSwitch"),
+            "outPw": raw.get("outPw"),
+            "inPw": raw.get("inPw"),
+            "raw_data": raw,
         }
 
 

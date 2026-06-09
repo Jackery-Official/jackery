@@ -171,6 +171,83 @@ def _all_subdevices_from_cache(data: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
+def _merge_subdevice_arrays_into_cache(
+    cache: dict[str, Any],
+    body: dict[str, Any],
+) -> bool:
+    """将 body 中的 plugs/cts 数组合并进缓存（type=101/102/25 等）."""
+    updated = False
+    raw_plugs = (
+        body.get("plug")
+        or body.get("plugs")
+        or body.get("socket")
+        or body.get("sockets")
+    )
+    if isinstance(raw_plugs, list) and raw_plugs:
+        plug_items: list[dict[str, Any]] = []
+        for item in raw_plugs:
+            if not isinstance(item, dict):
+                continue
+            entry = dict(item)
+            if entry.get("devType") is None:
+                entry["devType"] = 6
+            plug_items.append(entry)
+        existing_plugs = [
+            p
+            for p in (cache.get("plugs") or [])
+            if isinstance(p, dict) and subdevice_sensor_group(p) == "plug"
+        ]
+        cache["plugs"] = _merge_subdevice_list(existing_plugs, plug_items)
+        cache["plug"] = cache["plugs"]
+        updated = True
+
+    raw_cts = body.get("ct") or body.get("cts")
+    if isinstance(raw_cts, list) and raw_cts:
+        ct_items = [dict(item) for item in raw_cts if isinstance(item, dict)]
+        cache["cts"] = _merge_subdevice_list(cache.get("cts"), ct_items)
+        updated = True
+    return updated
+
+
+def _merge_subdevice_point_update(
+    cache: dict[str, Any],
+    body: dict[str, Any],
+    main_device_sn: str | None,
+) -> bool:
+    """将单子设备增量字段（type=102 等）合并进 plugs/cts 缓存."""
+    device_sn = _subdevice_sn(body)
+    if not device_sn or device_sn == main_device_sn or device_sn == "system":
+        return False
+
+    for key in ("plugs", "plug", "cts"):
+        items = cache.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and _subdevice_sn(item) == device_sn:
+                item.update(body)
+                return True
+
+    entry = dict(body)
+    dev_type = entry.get("devType")
+    if dev_type is None:
+        if any(k in body for k in ("switchSta", "sysSwitch", "outPw", "inPw", "totalEgy")):
+            entry["devType"] = 6
+            dev_type = 6
+        elif any(k in body for k in ("AphasePw", "aPhasePw", "phasePw", "subType")):
+            entry["devType"] = 3
+            dev_type = 3
+
+    if dev_type in PLUG_ITEM_DEV_TYPES:
+        cache["plugs"] = _merge_subdevice_list(cache.get("plugs"), [entry])
+        cache["plug"] = cache["plugs"]
+        return True
+    if is_ct_item_dev_type(dev_type):
+        cache["cts"] = _merge_subdevice_list(cache.get("cts"), [entry])
+        return True
+    return False
+
+
 # 传感器配置
 SENSORS = {
     # 设备状态
@@ -825,6 +902,13 @@ class JackeryDataCoordinator:
                     )
                     self._merge_normalized_cache(body)
 
+                # Type 102: 子设备实时增量（插座 switchSta/outPw、CT 功率等）
+                elif msg_code == 102 and isinstance(body, dict):
+                    if not _merge_subdevice_arrays_into_cache(self._data_cache, body):
+                        _merge_subdevice_point_update(
+                            self._data_cache, body, self._device_sn
+                        )
+
                 # Type 101: Sub-device full data
                 elif msg_code == 101 and isinstance(body, dict):
                     body_query_devtype = body.get("devType")
@@ -899,9 +983,33 @@ class JackeryDataCoordinator:
                             item.get("commState"),
                         )
 
-                # Type 25 or other main device payloads
+                # Type 25 or other payloads（主机字段 + 可选子设备数组/单条增量）
                 elif isinstance(body, dict) and body:
-                    self._merge_normalized_cache(body)
+                    sub_updated = _merge_subdevice_arrays_into_cache(
+                        self._data_cache, body
+                    )
+                    point_updated = _merge_subdevice_point_update(
+                        self._data_cache, body, self._device_sn
+                    )
+                    main_body = {
+                        k: v
+                        for k, v in body.items()
+                        if k
+                        not in (
+                            "plugs",
+                            "plug",
+                            "socket",
+                            "sockets",
+                            "cts",
+                            "ct",
+                            "deviceSn",
+                            "sn",
+                        )
+                    }
+                    if main_body and not (point_updated and not sub_updated):
+                        self._merge_normalized_cache(main_body)
+                    elif not sub_updated and not point_updated:
+                        self._merge_normalized_cache(body)
 
             except json.JSONDecodeError:
                 _LOGGER.warning(f"Invalid JSON payload on {topic}")
@@ -1046,6 +1154,28 @@ class JackeryDataCoordinator:
             0,
             False
         )
+        _LOGGER.info(
+            "Sent type=103 sub-device control to %s: deviceSn=%s devType=%s sysSwitch=%s",
+            action_topic,
+            plug_sn,
+            dev_type,
+            1 if is_on else 0,
+        )
+        self._apply_plug_switch_cache(plug_sn, is_on)
+        self._distribute_data(self._data_cache)
+
+    def _apply_plug_switch_cache(self, plug_sn: str, is_on: bool) -> None:
+        """控制指令发出后乐观更新插座开关缓存（sysSwitch / switchSta）。"""
+        switch_val = 1 if is_on else 0
+        for key in ("plugs", "plug"):
+            items = self._data_cache.get(key)
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if isinstance(item, dict) and _subdevice_sn(item) == plug_sn:
+                    item["sysSwitch"] = switch_val
+                    item["switchSta"] = switch_val
+                    return
 
     async def async_control_main_device(self, params: dict[str, Any]) -> None:
         """Control main device via type 1, cmd 5."""
@@ -1369,30 +1499,36 @@ class JackeryDataCoordinator:
                 except Exception as e:
                     _LOGGER.warning(f"Error polling device status (Type 25): {e}")
 
-                # 2. Poll Sub-devices (Type 100) - devType=2 同时获取 CT/电表采集头/电表
-                try:
-                    payload_100 = {
-                        "type": 100,
-                        "eventId": 0,
-                        "messageId": random.randint(1000, 9999),
-                        "ts": ts,
-                        "token": self._token,
-                        "body": {
-                            "devType": 2
-                        },
-                    }
+                # 2. Poll Sub-devices (Type 100) - devType=2 CT 家族；devType=6 智能插座
+                for poll_dev_type in (2, 6):
+                    try:
+                        payload_100 = {
+                            "type": 100,
+                            "eventId": 0,
+                            "messageId": random.randint(1000, 9999),
+                            "ts": ts,
+                            "token": self._token,
+                            "body": {
+                                "devType": poll_dev_type,
+                            },
+                        }
+                        await ha_mqtt.async_publish(
+                            self.hass,
+                            action_topic,
+                            json.dumps(payload_100),
+                            0,
+                            False,
+                        )
+                    except Exception as e:
+                        _LOGGER.warning(
+                            "Error polling sub-devices (Type 100 devType=%s): %s",
+                            poll_dev_type,
+                            e,
+                        )
 
-                    await ha_mqtt.async_publish(
-                        self.hass,
-                        action_topic,
-                        json.dumps(payload_100),
-                        0,
-                        False,
-                    )
-                except Exception as e:
-                    _LOGGER.warning(f"Error polling sub-devices (Type 100): {e}")
-
-                _LOGGER.debug(f"Sent poll requests (25 & 100 [2]) to {action_topic}")
+                _LOGGER.debug(
+                    "Sent poll requests (25 & 100 [2,6]) to %s", action_topic
+                )
 
                 await asyncio.sleep(REQUEST_INTERVAL)
 
