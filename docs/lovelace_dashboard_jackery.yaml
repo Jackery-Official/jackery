@@ -38,7 +38,9 @@ views:
             title: 实时全景能量流拓扑
             entities:
               grid:
-                entity: sensor.jackery_hs2c12600262hh4_grid_net_power
+                entity:
+                  consumption: sensor.jackery_hs2c12600262hh4_grid_import_power
+                  production: sensor.jackery_hs2c12600262hh4_grid_export_power
                 display_state: two_way
                 color_circle: true
                 name: 外部电网
@@ -47,8 +49,8 @@ views:
                 name: 光伏发电
               battery:
                 entity:
-                  consumption: sensor.jackery_hs2c12600262hh4_calc_battery_charge_power
-                  production: sensor.jackery_hs2c12600262hh4_calc_battery_discharge_power
+                  consumption: sensor.jackery_hs2c12600262hh4_battery_charge_power
+                  production: sensor.jackery_hs2c12600262hh4_battery_discharge_power
                 state_of_charge: sensor.jackery_hs2c12600262hh4_battery_soc
                 display_state: two_way
                 color_circle: true
@@ -58,7 +60,7 @@ views:
                 color_icon: true
                 name: 家庭总负载
               individual:
-                - entity: sensor.jackery_hs2c12600262hh4_eps_output_power
+                - entity: sensor.jackery_hs2c12600262hh4_ac_socket_power
                   name: EPS 离网系统
                   icon: mdi:power-plug
                   display_zero: true

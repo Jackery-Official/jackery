@@ -108,6 +108,100 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _pick_best_power_net(candidates: list[float]) -> float:
+    """在多个功率净值候选中取绝对值最大的非零值；全为 0 时返回最后一个候选。"""
+    if not candidates:
+        return 0.0
+    non_zero = [v for v in candidates if abs(v) > 0]
+    if non_zero:
+        return max(non_zero, key=abs)
+    return candidates[-1]
+
+
+def _extract_ct_grid_power(ct_data: dict[str, Any]) -> tuple[float, float, bool]:
+    """从 CT 子设备条目提取买电/卖电功率；返回 (grid_buy, grid_sell, has_power_fields)。"""
+    t_phase_pw = ct_data.get("TphasePw") or ct_data.get("tPhasePw")
+    tn_phase_pw = ct_data.get("TnphasePw") or ct_data.get("tnPhasePw")
+    has_power_fields = t_phase_pw is not None or tn_phase_pw is not None
+
+    if t_phase_pw is None:
+        a_pw = ct_data.get("AphasePw") or ct_data.get("aPhasePw")
+        b_pw = ct_data.get("BphasePw") or ct_data.get("bPhasePw")
+        c_pw = ct_data.get("CphasePw") or ct_data.get("cPhasePw")
+        if any(v is not None for v in (a_pw, b_pw, c_pw)):
+            t_phase_pw = _safe_float(a_pw) + _safe_float(b_pw) + _safe_float(c_pw)
+            has_power_fields = True
+
+    if tn_phase_pw is None:
+        an_pw = ct_data.get("AnphasePw") or ct_data.get("anPhasePw")
+        bn_pw = ct_data.get("BnphasePw") or ct_data.get("bnPhasePw")
+        cn_pw = ct_data.get("CnphasePw") or ct_data.get("cnPhasePw")
+        if any(v is not None for v in (an_pw, bn_pw, cn_pw)):
+            tn_phase_pw = _safe_float(an_pw) + _safe_float(bn_pw) + _safe_float(cn_pw)
+            has_power_fields = True
+
+    if not has_power_fields:
+        return 0.0, 0.0, False
+
+    return _safe_float(t_phase_pw), _safe_float(tn_phase_pw), True
+
+
+def _ct_has_usable_power(
+    ct_data: dict[str, Any], grid_buy: float, grid_sell: float, has_power_fields: bool
+) -> bool:
+    """CT 功率是否可信：有非零读数，或在线且已上报过相位功率字段（type=102）。"""
+    if abs(grid_buy) > 0 or abs(grid_sell) > 0:
+        return True
+    if not has_power_fields:
+        return False
+    comm = ct_data.get("commState")
+    return comm in (1, "1", True)
+
+
+def _effective_ongrid_net(
+    data: dict[str, Any],
+    grid_in: float,
+    grid_out: float,
+    ongrid_charge: float,
+    ongrid_supply: float,
+    in_grid_side: float,
+    out_grid_side: float,
+) -> float:
+    """并网口净功率：多源候选，优先非零且幅度最大（避免 type=106 零值盖住 type=25）。"""
+    candidates: list[float] = []
+    if _field_present(data, "gridInPw") or _field_present(data, "gridOutPw"):
+        candidates.append(grid_in - grid_out)
+    if _field_present(data, "inOngridPw") or _field_present(data, "outOngridPw"):
+        candidates.append(ongrid_charge - ongrid_supply)
+    if _field_present(data, "inGridSidePw") or _field_present(data, "outGridSidePw"):
+        candidates.append(in_grid_side - out_grid_side)
+    return _pick_best_power_net(candidates)
+
+
+def _grid_net_from_system(
+    data: dict[str, Any],
+    grid_in: float,
+    grid_out: float,
+    ongrid_charge: float,
+    ongrid_supply: float,
+    in_grid_side: float,
+    out_grid_side: float,
+) -> tuple[float, bool]:
+    """无 CT 时按 App 优先级推算电网净功率，含设备级回退。"""
+    candidates: list[float] = []
+    if _field_present(data, "inGridSidePw") or _field_present(data, "outGridSidePw"):
+        candidates.append(in_grid_side - out_grid_side)
+    if _field_present(data, "gridInPw") or _field_present(data, "gridOutPw"):
+        gi_go = grid_in - grid_out
+        if abs(gi_go) > 0 or grid_in != 0 or grid_out != 0:
+            candidates.append(gi_go)
+    if _field_present(data, "inOngridPw") or _field_present(data, "outOngridPw"):
+        candidates.append(ongrid_charge - ongrid_supply)
+    if not candidates:
+        return 0.0, False
+    return _pick_best_power_net(candidates), True
+
+
 def _normalize_payload_fields(payload: dict[str, Any]) -> dict[str, Any]:
     """统一 MQTT 字段别名，便于缓存合并与能量流计算."""
     result = dict(payload)
@@ -1452,17 +1546,22 @@ class JackeryDataCoordinator:
             else:
                 pv = _safe_float(pv_val)
 
-            # 2. 并网口功率 ong（App systemBody: gridInPw - gridOutPw）
+            # 2. 并网口功率 ong（多源候选，避免 type=106 零值阻断 type=25 回退）
             grid_in = _safe_float(data.get("gridInPw"))
             grid_out = _safe_float(data.get("gridOutPw"))
             ongrid_charge = _safe_float(data.get("inOngridPw"))
             ongrid_supply = _safe_float(data.get("outOngridPw"))
-            if _field_present(data, "gridInPw") or _field_present(data, "gridOutPw"):
-                p_ong = grid_in - grid_out
-            elif _field_present(data, "inOngridPw") or _field_present(data, "outOngridPw"):
-                p_ong = ongrid_charge - ongrid_supply
-            else:
-                p_ong = 0.0
+            in_grid_side = _safe_float(data.get("inGridSidePw"))
+            out_grid_side = _safe_float(data.get("outGridSidePw"))
+            p_ong = _effective_ongrid_net(
+                data,
+                grid_in,
+                grid_out,
+                ongrid_charge,
+                ongrid_supply,
+                in_grid_side,
+                out_grid_side,
+            )
 
             # 3. AC Socket（设备级 swEps*）
             ac_in = _safe_float(data.get("swEpsInPw"))
@@ -1470,17 +1569,7 @@ class JackeryDataCoordinator:
             p_ac = ac_in - ac_out
             ac_socket = ac_in if ac_in > 0 else ac_out
 
-            # 4. 电网侧端口（App: inGridSidePw - outGridSidePw）
-            in_grid_side = _safe_float(data.get("inGridSidePw"))
-            out_grid_side = _safe_float(data.get("outGridSidePw"))
-            has_grid_side = (
-                _field_present(data, "inGridSidePw") or _field_present(data, "outGridSidePw")
-            )
-            has_grid_io = (
-                _field_present(data, "gridInPw") or _field_present(data, "gridOutPw")
-            )
-
-            # 5. CT 电表（有实时功率时优先于系统侧推算）
+            # 4. CT 电表（仅在有可信实时功率时优先于系统侧推算）
             grid_available = False
             grid_buy = 0.0
             grid_sell = 0.0
@@ -1489,30 +1578,12 @@ class JackeryDataCoordinator:
             cts = data.get("cts")
             if cts and isinstance(cts, list) and len(cts) > 0:
                 ct_data = cts[0]
-                t_phase_pw = ct_data.get("TphasePw") or ct_data.get("tPhasePw")
-                tn_phase_pw = ct_data.get("TnphasePw") or ct_data.get("tnPhasePw")
-
-                if t_phase_pw is None:
-                    a_pw = ct_data.get("AphasePw") or ct_data.get("aPhasePw") or 0
-                    b_pw = ct_data.get("BphasePw") or ct_data.get("bPhasePw") or 0
-                    c_pw = ct_data.get("CphasePw") or ct_data.get("cPhasePw") or 0
-                    if any(v is not None for v in [a_pw, b_pw, c_pw]):
-                        t_phase_pw = float(a_pw) + float(b_pw) + float(c_pw)
-
-                if tn_phase_pw is None:
-                    an_pw = ct_data.get("AnphasePw") or ct_data.get("anPhasePw") or 0
-                    bn_pw = ct_data.get("BnphasePw") or ct_data.get("bnPhasePw") or 0
-                    cn_pw = ct_data.get("CnphasePw") or ct_data.get("cnPhasePw") or 0
-                    if any(v is not None for v in [an_pw, bn_pw, cn_pw]):
-                        tn_phase_pw = float(an_pw) + float(bn_pw) + float(cn_pw)
-
-                if t_phase_pw is not None or tn_phase_pw is not None:
-                    grid_buy = _safe_float(t_phase_pw)
-                    grid_sell = _safe_float(tn_phase_pw)
-                    grid_available = True
+                grid_buy, grid_sell, has_ct_fields = _extract_ct_grid_power(ct_data)
+                if _ct_has_usable_power(ct_data, grid_buy, grid_sell, has_ct_fields):
                     ct_available = True
+                    grid_available = True
 
-            # 6. 电网净功率（App 图二：先电网侧，再回退并网口）
+            # 5. 电网净功率（CT 可信时用 CT，否则系统/设备级回退链）
             p_grid = 0.0
             if ct_available:
                 p_grid = grid_buy - grid_sell
@@ -1522,22 +1593,18 @@ class JackeryDataCoordinator:
                     and (ongrid_charge - grid_buy) <= 50
                 ):
                     p_grid = p_ong
-            elif has_grid_side:
-                grid_available = True
-                p_grid = in_grid_side - out_grid_side
-                if (
-                    _field_present(data, "inGridSidePw")
-                    and _field_present(data, "gridInPw")
-                    and in_grid_side < grid_in
-                    and (grid_in - in_grid_side) <= 50
-                ):
-                    p_grid = grid_in - grid_out
-            elif has_grid_io:
-                grid_available = True
-                p_grid = grid_in - grid_out
-            elif _field_present(data, "inOngridPw") or _field_present(data, "outOngridPw"):
-                grid_available = True
-                p_grid = p_ong
+                elif abs(p_grid) < 1 and abs(p_ong) > 1:
+                    p_grid = p_ong
+            else:
+                p_grid, grid_available = _grid_net_from_system(
+                    data,
+                    grid_in,
+                    grid_out,
+                    ongrid_charge,
+                    ongrid_supply,
+                    in_grid_side,
+                    out_grid_side,
+                )
 
             # 7. 电池功率：优先 type=106 的 batInPw/batOutPw，否则 App 公式 pv+ac+ong
             bat_in = _safe_float(data.get("batInPw"))
@@ -1584,6 +1651,18 @@ class JackeryDataCoordinator:
             other_load = _safe_float(data.get("otherLoadPw"))
             if p_home == 0.0 and _field_present(data, "otherLoadPw") and other_load > 0:
                 p_home = other_load
+
+            if (
+                ongrid_charge > 0
+                and abs(p_grid - ongrid_charge) > 50
+                and not ct_available
+            ):
+                _LOGGER.debug(
+                    "Energy flow grid mismatch: calc_grid_net=%.1f inOngridPw=%.1f p_ong=%.1f",
+                    p_grid,
+                    ongrid_charge,
+                    p_ong,
+                )
 
             data["calc_ac_socket_power"] = ac_socket
             data["calc_home_power"] = p_home
