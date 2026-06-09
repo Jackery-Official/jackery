@@ -304,7 +304,34 @@ views:
                     name: 反向电量 (馈网)
               - type: custom:mushroom-title-card
                 title: 智能插座
-                subtitle: Shelly Plug · 9070694adb4c (devType=6) · 仅 commMode=1 可 MQTT 控制
+                subtitle: Shelly Plug · 9070694adb4c (devType=6)
+              - type: custom:mushroom-chips-card
+                chips:
+                  - type: template
+                    icon: mdi:cloud-lock
+                    icon_color: >-
+                      {% if state_attr('switch.jackery_plug_9070694adb4c_switch',
+                      'mqtt_controllable') %}green{% else %}red{% endif %}
+                    content: >-
+                      commMode={{ state_attr('switch.jackery_plug_9070694adb4c_switch',
+                      'commMode') | default('?') }}
+                      ({{
+                      state_attr('switch.jackery_plug_9070694adb4c_switch',
+                      'commMode_label') | default('unknown')
+                      }})
+                  - type: template
+                    icon: mdi:information-outline
+                    icon_color: orange
+                    content: >-
+                      {% if state_attr('switch.jackery_plug_9070694adb4c_switch',
+                      'mqtt_controllable') %}
+                      可 MQTT 控制
+                      {% else %}
+                      {{
+                      state_attr('switch.jackery_plug_9070694adb4c_switch',
+                      'mqtt_control_block_reason') | default('不可 MQTT 控制')
+                      }}
+                      {% endif %}
               - type: custom:mushroom-entity-card
                 entity: switch.jackery_plug_9070694adb4c_switch
                 name: 插座开关 (type=103)
@@ -312,7 +339,9 @@ views:
                 layout: horizontal
                 tap_action:
                   action: toggle
-                secondary_info: state
+                secondary_info: none
+                multiline_secondary: true
+                primary_info: name
               - type: entities
                 state_color: true
                 show_header_toggle: false

@@ -2,6 +2,7 @@
 import logging
 from typing import Any, TYPE_CHECKING
 
+from homeassistant.components import persistent_notification
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -151,15 +152,21 @@ class JackeryPlugSwitch(SwitchEntity):
 
         self.async_write_ha_state()
 
-    def _ensure_mqtt_controllable(self) -> None:
-        """仅 commMode=1（本地连接）时允许 MQTT 控制。"""
+    async def _ensure_mqtt_controllable(self) -> None:
+        """仅 commMode=1（本地连接）时允许 MQTT 控制；不可控时弹出持久通知。"""
         allowed, reason = plug_mqtt_control_allowed(self._plug_item())
         if not allowed:
+            persistent_notification.async_create(
+                self.hass,
+                message=reason,
+                title="Jackery 智能插座",
+                notification_id=f"jackery_plug_{self._plug_sn}_mqtt_blocked",
+            )
             raise HomeAssistantError(reason)
 
     async def async_toggle(self, **kwargs: Any) -> None:
         """看板标题开关/卡片 toggle 均走此入口，云云对接时开/关统一拦截。"""
-        self._ensure_mqtt_controllable()
+        await self._ensure_mqtt_controllable()
         if self.is_on:
             await self._coordinator.async_control_subdevice_switch(
                 plug_sn=self._plug_sn,
@@ -174,7 +181,7 @@ class JackeryPlugSwitch(SwitchEntity):
             )
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        self._ensure_mqtt_controllable()
+        await self._ensure_mqtt_controllable()
         await self._coordinator.async_control_subdevice_switch(
             plug_sn=self._plug_sn,
             dev_type=self._dev_type,
@@ -182,7 +189,7 @@ class JackeryPlugSwitch(SwitchEntity):
         )
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        self._ensure_mqtt_controllable()
+        await self._ensure_mqtt_controllable()
         await self._coordinator.async_control_subdevice_switch(
             plug_sn=self._plug_sn,
             dev_type=self._dev_type,
