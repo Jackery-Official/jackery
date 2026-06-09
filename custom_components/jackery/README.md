@@ -53,11 +53,11 @@
 | Number | **SOC Charge / Discharge Limit** | 充电上限 / 放电下限 |
 | Number | **Max Output Power (OnGrid)** | 并网口最大输出功率 |
 | Button | **Reboot** | 重启主机（下发 `reboot=1`） |
-| Switch | **Plug Switch** | 智能插座开 / 关（子设备，`type=103`） |
+| Switch | **Plug Switch** | 智能插座开 / 关（子设备，`type=103`；仅 `commMode=1` 本地连接可 MQTT 控制） |
 
 ### 子设备（Smart CT / Smart Plug）
 
-- **Smart Plug**：负载功率、累计用电量、开 / 关开关（每台主机最多 10 个）。
+- **Smart Plug**：负载功率、累计用电量、开 / 关开关（每台主机最多 10 个）。`commMode=1`（本地）时可通过 MQTT 控制；`commMode=2`（云平台）时 HA 会拒绝下发并提示使用 App。
 - **Smart CT**：实时功率、累计正向（购电）电量 `Forward Energy`、累计反向（馈网）电量 `Reverse Energy`（每台主机最多 1 台）。
 - 子设备数据从主机 MQTT 消息中消失时，对应实体标记为 `Unavailable`，重新出现时自动恢复。
 

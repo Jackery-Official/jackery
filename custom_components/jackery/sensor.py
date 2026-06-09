@@ -16,6 +16,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -112,6 +113,46 @@ def _extract_flat_body(raw_data: dict[str, Any]) -> dict[str, Any]:
 # 子设备数组元素 devType（与 type=100/101 的 body.devType 查询范围不同）
 CT_ITEM_DEV_TYPES = frozenset({2, 3, 4})
 PLUG_ITEM_DEV_TYPES = frozenset({6})
+
+# 智能插座通信模式（协议 commMode）
+COMM_MODE_LOCAL = 1
+COMM_MODE_CLOUD = 2
+COMM_MODE_LABELS = {
+    COMM_MODE_LOCAL: "local",
+    COMM_MODE_CLOUD: "cloud",
+}
+
+
+def plug_comm_mode(item: dict[str, Any]) -> int | None:
+    """读取插座 commMode（1=本地，2=云平台）。"""
+    val = item.get("commMode")
+    if val is None:
+        return None
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def plug_mqtt_control_allowed(item: dict[str, Any]) -> tuple[bool, str]:
+    """是否允许通过 MQTT 控制插座；返回 (allowed, reason)。"""
+    mode = plug_comm_mode(item)
+    if mode == COMM_MODE_LOCAL:
+        return True, ""
+    if mode == COMM_MODE_CLOUD:
+        return (
+            False,
+            "智能插座为云平台对接 (commMode=2)，无法直接通过 MQTT 控制，请在 Jackery App 中操作",
+        )
+    if mode is None:
+        return (
+            False,
+            "智能插座连接模式未知 (commMode 未上报)，仅 commMode=1 (本地连接) 时支持 MQTT 控制",
+        )
+    return (
+        False,
+        f"智能插座 commMode={mode} 不支持 MQTT 直接控制，仅 commMode=1 (本地连接) 时可控",
+    )
 
 
 def _subdevice_sn(item: dict[str, Any]) -> str | None:
@@ -1125,11 +1166,28 @@ class JackeryDataCoordinator:
         """Return latest sub-device list from cache."""
         return _all_subdevices_from_cache(self._data_cache)
 
+    def _find_plug_in_cache(self, plug_sn: str) -> dict[str, Any] | None:
+        """从缓存查找智能插座条目。"""
+        for key in ("plugs", "plug"):
+            items = self._data_cache.get(key)
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if isinstance(item, dict) and _subdevice_sn(item) == plug_sn:
+                    return item
+        return None
+
     async def async_control_subdevice_switch(self, plug_sn: str, dev_type: int, is_on: bool) -> None:
-        """Control sub-device switch via type 103."""
+        """Control sub-device switch via type 103（仅 commMode=1 本地连接）。"""
         if not self._device_sn:
             _LOGGER.warning("Cannot control sub-device: device SN not discovered")
-            return
+            raise HomeAssistantError("主机 SN 未发现，无法下发插座控制指令")
+
+        plug_item = self._find_plug_in_cache(plug_sn) or {}
+        allowed, reason = plug_mqtt_control_allowed(plug_item)
+        if not allowed:
+            _LOGGER.warning("Plug %s control blocked: %s", plug_sn, reason)
+            raise HomeAssistantError(reason)
 
         action_topic = f"{self._topic_root}/device/{self._device_sn}/action"
         ts = int(time.time())
@@ -1840,6 +1898,8 @@ class JackerySubDeviceSensor(SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         raw = getattr(self, "_raw_data", None) or {}
+        mode = plug_comm_mode(raw)
+        mqtt_ok, _ = plug_mqtt_control_allowed(raw)
         return {
             "plug_sn": self._plug_sn,
             "dev_type": self._dev_type,
@@ -1849,6 +1909,9 @@ class JackerySubDeviceSensor(SensorEntity):
             "sn": raw.get("sn") or raw.get("deviceSn"),
             "name": raw.get("name") or raw.get("scanName"),
             "commState": raw.get("commState"),
+            "commMode": mode,
+            "commMode_label": COMM_MODE_LABELS.get(mode) if mode is not None else None,
+            "mqtt_controllable": mqtt_ok,
             # Plug fields
             "inPw": raw.get("inPw"),
             "outPw": raw.get("outPw"),

@@ -5,10 +5,16 @@ from typing import Any, TYPE_CHECKING
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import DOMAIN
-from .sensor import should_create_plug_switch
+from .sensor import (
+    COMM_MODE_LABELS,
+    plug_comm_mode,
+    plug_mqtt_control_allowed,
+    should_create_plug_switch,
+)
 
 if TYPE_CHECKING:
     from .sensor import JackeryDataCoordinator
@@ -130,7 +136,14 @@ class JackeryPlugSwitch(SwitchEntity):
 
         self.async_write_ha_state()
 
+    def _ensure_mqtt_controllable(self) -> None:
+        """仅 commMode=1（本地连接）时允许 MQTT 控制。"""
+        allowed, reason = plug_mqtt_control_allowed(self._raw_data)
+        if not allowed:
+            raise HomeAssistantError(reason)
+
     async def async_turn_on(self, **kwargs: Any) -> None:
+        self._ensure_mqtt_controllable()
         await self._coordinator.async_control_subdevice_switch(
             plug_sn=self._plug_sn,
             dev_type=self._dev_type,
@@ -138,6 +151,7 @@ class JackeryPlugSwitch(SwitchEntity):
         )
 
     async def async_turn_off(self, **kwargs: Any) -> None:
+        self._ensure_mqtt_controllable()
         await self._coordinator.async_control_subdevice_switch(
             plug_sn=self._plug_sn,
             dev_type=self._dev_type,
@@ -147,10 +161,16 @@ class JackeryPlugSwitch(SwitchEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         raw = self._raw_data or {}
+        mode = plug_comm_mode(raw)
+        mqtt_ok, mqtt_block_reason = plug_mqtt_control_allowed(raw)
         return {
             "plug_sn": self._plug_sn,
             "dev_type": self._dev_type,
             "commState": raw.get("commState"),
+            "commMode": mode,
+            "commMode_label": COMM_MODE_LABELS.get(mode) if mode is not None else None,
+            "mqtt_controllable": mqtt_ok,
+            "mqtt_control_block_reason": mqtt_block_reason or None,
             "scanName": raw.get("scanName") or raw.get("name"),
             "switchSta": raw.get("switchSta") if raw.get("switchSta") is not None else raw.get("sysSwitch"),
             "outPw": raw.get("outPw"),
