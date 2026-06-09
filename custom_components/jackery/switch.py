@@ -122,9 +122,9 @@ class JackeryPlugSwitch(SwitchEntity):
         self._raw_data = dict(my_plug)
         self._attr_available = True
 
-        val = my_plug.get("sysSwitch")
+        val = my_plug.get("switchSta")
         if val is None:
-            val = my_plug.get("switchSta")
+            val = my_plug.get("sysSwitch")
         if val is not None:
             self._attr_is_on = bool(int(val))
 
@@ -152,8 +152,7 @@ class JackeryPlugSwitch(SwitchEntity):
             "dev_type": self._dev_type,
             "commState": raw.get("commState"),
             "scanName": raw.get("scanName") or raw.get("name"),
-            "switchSta": raw.get("switchSta"),
-            "sysSwitch": raw.get("sysSwitch"),
+            "switchSta": raw.get("switchSta") if raw.get("switchSta") is not None else raw.get("sysSwitch"),
             "outPw": raw.get("outPw"),
             "inPw": raw.get("inPw"),
             "raw_data": raw,

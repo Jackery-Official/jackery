@@ -1141,7 +1141,7 @@ class JackeryDataCoordinator:
             "body": {
                 "deviceSn": plug_sn,
                 "devType": dev_type,
-                "sysSwitch": 1 if is_on else 0,
+                "switchSta": 1 if is_on else 0,
             },
         }
         if self._token:
@@ -1155,7 +1155,7 @@ class JackeryDataCoordinator:
             False
         )
         _LOGGER.info(
-            "Sent type=103 sub-device control to %s: deviceSn=%s devType=%s sysSwitch=%s",
+            "Sent type=103 sub-device control to %s: deviceSn=%s devType=%s switchSta=%s",
             action_topic,
             plug_sn,
             dev_type,
@@ -1165,7 +1165,7 @@ class JackeryDataCoordinator:
         self._distribute_data(self._data_cache)
 
     def _apply_plug_switch_cache(self, plug_sn: str, is_on: bool) -> None:
-        """控制指令发出后乐观更新插座开关缓存（sysSwitch / switchSta）。"""
+        """控制指令发出后乐观更新插座开关缓存（switchSta）。"""
         switch_val = 1 if is_on else 0
         for key in ("plugs", "plug"):
             items = self._data_cache.get(key)
@@ -1173,7 +1173,6 @@ class JackeryDataCoordinator:
                 continue
             for item in items:
                 if isinstance(item, dict) and _subdevice_sn(item) == plug_sn:
-                    item["sysSwitch"] = switch_val
                     item["switchSta"] = switch_val
                     return
 
@@ -1853,7 +1852,7 @@ class JackerySubDeviceSensor(SensorEntity):
             # Plug fields
             "inPw": raw.get("inPw"),
             "outPw": raw.get("outPw"),
-            "sysSwitch": raw.get("sysSwitch") if raw.get("sysSwitch") is not None else raw.get("switchSta"),
+            "switchSta": raw.get("switchSta") if raw.get("switchSta") is not None else raw.get("sysSwitch"),
             "totalEgy": raw.get("totalEgy"),
             # CT Fields
             "TphasePw": raw.get("TphasePw"),
