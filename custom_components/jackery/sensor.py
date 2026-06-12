@@ -1083,10 +1083,17 @@ class JackeryDataCoordinator:
                 msg_code = raw_data.get("type")
                 body = raw_data.get("body")
 
+                body_sn = body.get("deviceSn") if isinstance(body, dict) else None
+                is_main_device_msg = (
+                        not body_sn
+                        or body_sn == self._device_sn
+                        or body_sn == "system"
+                )
                 # 捕获主机型号(deviceType)与固件版本(softver)
-                # 仅在主机相关报文中捕获，避免子设备(type=101/102)的 deviceType 覆盖主机型号
-                if msg_code in (2, 23, 25, 106, 107):
+                # 仅当确认是主机自己的报文时，才更新主机详情，防止被 CT/插座的 type=23 污染
+                if is_main_device_msg and msg_code in (2, 23, 25, 106, 107):
                     self._capture_device_meta(raw_data, body)
+
                 
                 # If body is missing or None, use empty dict or the raw_data itself if it looks like data
                 # But protocol says data is in body.
