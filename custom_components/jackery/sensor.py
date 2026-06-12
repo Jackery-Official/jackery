@@ -1083,8 +1083,10 @@ class JackeryDataCoordinator:
                 msg_code = raw_data.get("type")
                 body = raw_data.get("body")
 
-                # 捕获设备型号(deviceType)与固件合并包版本(softver)，用于设备详情展示
-                self._capture_device_meta(raw_data, body)
+                # 捕获主机型号(deviceType)与固件版本(softver)
+                # 仅在主机相关报文中捕获，避免子设备(type=101/102)的 deviceType 覆盖主机型号
+                if msg_code in (2, 23, 25, 106, 107):
+                    self._capture_device_meta(raw_data, body)
                 
                 # If body is missing or None, use empty dict or the raw_data itself if it looks like data
                 # But protocol says data is in body.
