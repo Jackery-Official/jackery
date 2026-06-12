@@ -1197,9 +1197,26 @@ class JackeryDataCoordinator:
                     if body_query_devtype == 6:
                         # 仅替换插座列表
                         self._data_cache["plugs"] = plug_items
+
+                        reported_plugs = {_subdevice_sn(p) for p in plug_items if _subdevice_sn(p)}
+                        for sn in list(self._known_plugs):
+                            # 如果之前已知该设备，且这次全量没上报，说明被解绑了
+                            if sn not in reported_plugs and any(
+                                    k.startswith(f"jackery_{self._device_sn}_plug_{sn}") for k in self._sensors
+                            ):
+                                self._remove_subdevice_from_ha(sn)
+
                     elif body_query_devtype == 2:
                         # 仅替换 CT 列表
                         self._data_cache["cts"] = ct_items
+
+                        reported_cts = {_subdevice_sn(c) for c in ct_items if _subdevice_sn(c)}
+                        for sn in list(self._known_plugs):
+                            if sn not in reported_cts and any(
+                                    k.startswith(f"jackery_{self._device_sn}_ct_{sn}") for k in self._sensors
+                            ):
+                                self._remove_subdevice_from_ha(sn)
+
                     else:
                         # 兼容逻辑：若未指定 devType，则按 SN 合并
                         self._data_cache["plugs"] = _merge_subdevice_list(existing_plugs, plug_items)
@@ -1727,6 +1744,27 @@ class JackeryDataCoordinator:
             if entity.available != available:
                 entity._attr_available = available
                 entity.async_write_ha_state()
+
+    def _remove_subdevice_from_ha(self, sn: str) -> None:
+        """从 Home Assistant 中彻底删除已被解绑的子设备及其附属实体."""
+        dev_reg = dr.async_get(self.hass)
+        # 这里的 identifiers 必须和 JackerySubDeviceSensor 中定义的一致
+        device = dev_reg.async_get_device(identifiers={(DOMAIN, f"sub_{self._device_sn}_{sn}")})
+
+        if device:
+            dev_reg.async_remove_device(device.id)
+            _LOGGER.info(f"Sub-device {sn} was unbound. Removed from HA device registry.")
+
+        # 清理内存缓存
+        if sn in self._known_plugs:
+            self._known_plugs.remove(sn)
+        if sn in self._subdevice_missing_since:
+            del self._subdevice_missing_since[sn]
+
+        # 清除已注册的传感器引用
+        keys_to_remove = self._entity_keys_for_subdevice(sn)
+        for k in keys_to_remove:
+            self.unregister_sensor(k)
 
     async def _periodic_data_request(self) -> None:
         """定期发送 'type: 25' 和 'type: 100' 指令."""
