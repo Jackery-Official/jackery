@@ -12,7 +12,7 @@ from . import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# 配置数据模式
+# Config data schema
 DATA_SCHEMA = vol.Schema(
     {
 
@@ -38,14 +38,14 @@ class JackeryConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            # 检查 MQTT 集成是否已配置
+            # Check if MQTT integration is configured
             if not await mqtt.async_wait_for_mqtt_client(self.hass):
                 errors["base"] = "mqtt_not_configured"
             else:
                 device_sn = user_input["device_sn"]
 
-                # 二期需求：支持添加多台 DIY3 主机，每台主机对应一条独立配置。
-                # 以 device_sn 作为唯一键，避免重复添加同一台主机。
+                # Support adding multiple DIY3 hosts, each with independent config.
+                # Use device_sn as unique key to prevent duplicate hosts.
                 await self.async_set_unique_id(device_sn)
                 self._abort_if_unique_id_configured()
 

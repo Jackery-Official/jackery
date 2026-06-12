@@ -14,10 +14,10 @@ PLATFORMS = [Platform.SENSOR, Platform.SWITCH, Platform.NUMBER, Platform.SELECT,
 
 
 async def _migrate_unique_ids(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """将一期的旧 unique_id 迁移为带 device_sn 的新格式，以保留历史数据.
+    """Migrate legacy unique_ids to new format with device_sn to preserve historical data.
 
-    旧格式：jackery_{sensor_id} / jackery_main_{key}
-    新格式：jackery_{sn}_{sensor_id} / jackery_{sn}_main_{key} / jackery_{sn}_plug_{plug_sn}_{key}
+    Old format: jackery_{sensor_id} / jackery_main_{key}
+    New format: jackery_{sn}_{sensor_id} / jackery_{sn}_main_{key} / jackery_{sn}_plug_{plug_sn}_{key}
     """
     device_sn = entry.data.get("device_sn")
     if not device_sn:
@@ -28,7 +28,7 @@ async def _migrate_unique_ids(hass: HomeAssistant, entry: ConfigEntry) -> None:
     @callback
     def _update(registry_entry: er.RegistryEntry) -> dict | None:
         old = registry_entry.unique_id
-        # 已迁移则跳过
+        # Skip if already migrated
         if old.startswith(new_prefix):
             return None
 
@@ -49,7 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Jackery from a config entry."""
     _LOGGER.info("Setting up Jackery integration")
     
-    # 检查 MQTT 集成是否已配置和可用
+    # Check if MQTT integration is configured and available
     if not await mqtt.async_wait_for_mqtt_client(hass):
         _LOGGER.error(
             "MQTT integration is not available or not configured. "
@@ -60,17 +60,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     _LOGGER.info("MQTT integration is available and ready")
 
-    # 迁移旧 unique_id（多实例改造：为实体加上 device_sn 前缀，同时保留历史数据）
+    # Migrate legacy unique_ids (multi-instance support: add device_sn prefix while preserving history)
     await _migrate_unique_ids(hass, entry)
 
-    # 初始化存储结构
+    # Initialize storage structure
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
         "config": entry.data,
-        "coordinator": None,  # 将在 sensor.py 中设置
+        "coordinator": None,  # Will be set in sensor.py
     }
     
-    # 加载传感器平台
+    # Load sensor platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
     return True
@@ -80,14 +80,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading Jackery integration")
     
-    # 停止协调器
+    # Stop the coordinator
     entry_data = hass.data[DOMAIN].get(entry.entry_id, {})
     coordinator = entry_data.get("coordinator")
     if coordinator:
         await coordinator.async_stop()
         _LOGGER.info("Coordinator stopped")
     
-    # 卸载传感器平台
+    # Unload sensor platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     
     if unload_ok:

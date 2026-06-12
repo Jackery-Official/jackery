@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# autoStandby：0-无效；1-待机；2-开机
+# autoStandby: 0=Invalid, 1=Standby, 2=On
 AUTO_STANDBY_OPTIONS = {
     "invalid": 0,
     "standby": 1,

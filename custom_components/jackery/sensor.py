@@ -24,53 +24,53 @@ from . import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# 常量定义
-REQUEST_INTERVAL = 5  # 数据请求间隔（秒），二期需求要求 5 秒
-OFFLINE_TIMEOUT = 60  # 离线判定超时（秒），超过未收到上报即标记 Unavailable
-# 自配置完成后持续下发指令但始终无任何响应，超过该时长则提示重新认证 Token
+# Constants
+REQUEST_INTERVAL = 5  # Data request interval (seconds), Phase 2 requires 5s
+OFFLINE_TIMEOUT = 60  # Offline timeout (seconds), mark as Unavailable if no report received
+# Prompt for re-auth if no response received within this duration after setup
 REAUTH_HINT_TIMEOUT = 120
 
-# 主机运行状态映射（stat 字段）
+# Host operation status mapping (stat field)
 DEVICE_STATUS_MAP = {
-    0: "normal",       # 正常
-    1: "waiting",      # 等待
-    2: "alarm",        # 告警
-    3: "fault",        # 故障
-    4: "standby",      # 待机
-    5: "low_power",    # 低功耗
+    0: "normal",       # Normal
+    1: "waiting",      # Waiting
+    2: "alarm",        # Alarm
+    3: "fault",        # Fault
+    4: "standby",      # Standby
+    5: "low_power",    # Low Power
 }
 
-# 并网系统状态字段映射（type=106 全量属性）
-ONGRID_STATUS_MAP = {0: "off_grid", 1: "on_grid"}        # ongridStat：1并网 0离网
-CT_STATUS_MAP = {0: "offline", 1: "online"}              # ctStat：1在线 0离线
-GRID_METER_LINK_MAP = {0: "abnormal", 1: "normal"}       # gridSate：1正常 0异常
+# Grid-tied system status mapping (type=106 full attributes)
+ONGRID_STATUS_MAP = {0: "off_grid", 1: "on_grid"}        # ongridStat: 1=On-grid, 0=Off-grid
+CT_STATUS_MAP = {0: "offline", 1: "online"}              # ctStat: 1=Online, 0=Offline
+GRID_METER_LINK_MAP = {0: "abnormal", 1: "normal"}       # gridSate: 1=Normal, 0=Abnormal
 
-# funcEnable 功能使能位（bit -> 名称），每个 bit 为 1 使能、0 不使能
+# funcEnable bits (bit -> name), 1=Enabled, 0=Disabled
 FUNC_ENABLE_BITS = {
-    0: "aerosol",            # bit0 气溶胶
-    1: "soc_calibration",    # bit1 SOC 校准
-    2: "low_power",          # bit2 低功耗
-    3: "soh_calibration",    # bit3 SOH 校准
-    4: "pcs_comm_diag",      # bit4 PCS 通信故障诊断
-    5: "shutdown_2h",        # bit5 2H 关机
-    6: "fault_shutdown",     # bit6 故障关机
-    7: "epo",                # bit7 EPO 功能
-    8: "func_48v",           # bit8 48V 功能
-    9: "ethernet_debug",     # bit9 以太网 debug 功能
-    10: "energy_flow_fill",  # bit10 能量流数据补传功能
-    11: "smart_plug_first",  # bit11 智能插座优先
+    0: "aerosol",            # bit0 aerosol
+    1: "soc_calibration",    # bit1 SOC calibration
+    2: "low_power",          # bit2 low power
+    3: "soh_calibration",    # bit3 SOH calibration
+    4: "pcs_comm_diag",      # bit4 PCS communication diagnosis
+    5: "shutdown_2h",        # bit5 2H shutdown
+    6: "fault_shutdown",     # bit6 fault shutdown
+    7: "epo",                # bit7 EPO function
+    8: "func_48v",           # bit8 48V function
+    9: "ethernet_debug",     # bit9 Ethernet debug function
+    10: "energy_flow_fill",  # bit10 energy flow data backfill
+    11: "smart_plug_first",  # bit11 smart plug priority
 }
 
-# deviceType -> 设备型号名称映射（用于设备详情展示），未命中则回退 "Energy Monitor"
+# deviceType -> Model name mapping (for device details), fallback to "Energy Monitor"
 DEVICE_TYPE_MODEL_MAP = {
-    1: "加电包",
-    2: "CT/电表采集头/电表",
+    1: "Battery Pack",
+    2: "CT/Meter Collector/Meter",
     3: "CT",
-    4: "电表采集头",
+    4: "Meter Collector",
 }
 DEFAULT_MODEL = "Energy Monitor"
 
-# 扁平 status 报文识别字段（无 type/body 包装时）
+# Flat status message recognition fields (without type/body wrapper)
 _FLAT_PAYLOAD_KEYS = frozenset(
     {
         "batSoc",
@@ -94,12 +94,12 @@ _FLAT_PAYLOAD_KEYS = frozenset(
 
 
 def _field_present(data: dict[str, Any], key: str) -> bool:
-    """字段是否在缓存中存在（0 也算有效值，区别于 None 未上报）。"""
+    """Check if field exists in cache (0 is valid, None means not reported)."""
     return key in data and data[key] is not None
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
-    """将 MQTT 字段安全转换为 float."""
+    """Safely convert MQTT field to float."""
     if value is None:
         return default
     try:
@@ -109,7 +109,7 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
 
 
 def _pick_best_power_net(candidates: list[float]) -> float:
-    """在多个功率净值候选中取绝对值最大的非零值；全为 0 时返回最后一个候选。"""
+    """Pick non-zero value with max absolute magnitude from candidates; fallback to last candidate if all are 0."""
     if not candidates:
         return 0.0
     non_zero = [v for v in candidates if abs(v) > 0]
@@ -119,7 +119,7 @@ def _pick_best_power_net(candidates: list[float]) -> float:
 
 
 def _extract_ct_grid_power(ct_data: dict[str, Any]) -> tuple[float, float, bool]:
-    """从 CT 子设备条目提取买电/卖电功率；返回 (grid_buy, grid_sell, has_power_fields)。"""
+    """Extract buy/sell power from CT sub-device; returns (grid_buy, grid_sell, has_power_fields)."""
     t_phase_pw = ct_data.get("TphasePw") or ct_data.get("tPhasePw")
     tn_phase_pw = ct_data.get("TnphasePw") or ct_data.get("tnPhasePw")
     has_power_fields = t_phase_pw is not None or tn_phase_pw is not None
@@ -149,7 +149,7 @@ def _extract_ct_grid_power(ct_data: dict[str, Any]) -> tuple[float, float, bool]
 def _ct_has_usable_power(
     ct_data: dict[str, Any], grid_buy: float, grid_sell: float, has_power_fields: bool
 ) -> bool:
-    """CT 功率是否可信：有非零读数，或在线且已上报过相位功率字段（type=102）。"""
+    """Check if CT power is reliable: non-zero reading, or online and has reported phase power (type=102)."""
     if abs(grid_buy) > 0 or abs(grid_sell) > 0:
         return True
     if not has_power_fields:
@@ -167,7 +167,7 @@ def _effective_ongrid_net(
     in_grid_side: float,
     out_grid_side: float,
 ) -> float:
-    """并网口净功率：多源候选，优先非零且幅度最大（避免 type=106 零值盖住 type=25）。"""
+    """Net power at grid-tied port: prioritized non-zero max magnitude (prevents type=106 zero from blocking type=25 fallback)."""
     candidates: list[float] = []
     if _field_present(data, "gridInPw") or _field_present(data, "gridOutPw"):
         candidates.append(grid_in - grid_out)
@@ -187,7 +187,7 @@ def _grid_net_from_system(
     in_grid_side: float,
     out_grid_side: float,
 ) -> tuple[float, bool]:
-    """无 CT 时按 App 优先级推算电网净功率，含设备级回退。"""
+    """Calculate net grid power based on App priority when CT is missing, including device-level fallback."""
     candidates: list[float] = []
     if _field_present(data, "inGridSidePw") or _field_present(data, "outGridSidePw"):
         candidates.append(in_grid_side - out_grid_side)
@@ -203,7 +203,7 @@ def _grid_net_from_system(
 
 
 def _normalize_payload_fields(payload: dict[str, Any]) -> dict[str, Any]:
-    """统一 MQTT 字段别名，便于缓存合并与能量流计算."""
+    """Normalize MQTT field aliases for cache merging and energy flow calculation."""
     result = dict(payload)
 
     if "soc" in result and result.get("batSoc") is None:
@@ -214,7 +214,7 @@ def _normalize_payload_fields(payload: dict[str, Any]) -> dict[str, Any]:
     if result.get("gridOutPw") is None and result.get("gridSellPw") is not None:
         result["gridOutPw"] = result["gridSellPw"]
 
-    # 系统全量报文 type=106 使用 workModel，增量 type=107 使用 workMode，统一到 workMode
+    # Normalize workModel (type=106) and workMode (type=107) to workMode
     if result.get("workMode") is None and result.get("workModel") is not None:
         result["workMode"] = result["workModel"]
 
@@ -222,7 +222,7 @@ def _normalize_payload_fields(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _extract_flat_body(raw_data: dict[str, Any]) -> dict[str, Any]:
-    """从扁平 status 报文中提取 body 字段."""
+    """Extract body fields from flat status message."""
     meta_keys = {
         "type",
         "eventId",
@@ -238,11 +238,11 @@ def _extract_flat_body(raw_data: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in raw_data.items() if key not in meta_keys}
 
 
-# 子设备数组元素 devType（与 type=100/101 的 body.devType 查询范围不同）
+# Sub-device array element devType (different scope from body.devType in type=100/101)
 CT_ITEM_DEV_TYPES = frozenset({2, 3, 4})
 PLUG_ITEM_DEV_TYPES = frozenset({6})
 
-# 智能插座通信模式（协议 commMode）
+# Smart plug communication mode (commMode)
 COMM_MODE_LOCAL = 1
 COMM_MODE_CLOUD = 2
 COMM_MODE_LABELS = {
@@ -252,7 +252,7 @@ COMM_MODE_LABELS = {
 
 
 def plug_comm_mode(item: dict[str, Any]) -> int | None:
-    """读取插座 commMode（1=本地，2=云平台）。"""
+    """Read plug commMode (1=local, 2=cloud)."""
     val = item.get("commMode")
     if val is None:
         return None
@@ -263,45 +263,45 @@ def plug_comm_mode(item: dict[str, Any]) -> int | None:
 
 
 def plug_mqtt_control_allowed(item: dict[str, Any]) -> tuple[bool, str]:
-    """是否允许通过 MQTT 控制插座；返回 (allowed, reason)。"""
+    """Check if MQTT control is allowed for plug; returns (allowed, reason)."""
     mode = plug_comm_mode(item)
     if mode == COMM_MODE_LOCAL:
         return True, ""
     if mode == COMM_MODE_CLOUD:
         return (
             False,
-            "智能插座为云平台对接 (commMode=2)，无法直接通过 MQTT 控制，请在 Jackery App 中操作",
+            "Smart plug is cloud-connected (commMode=2) and cannot be controlled via MQTT. Please use the Jackery App.",
         )
     if mode is None:
         return (
             False,
-            "智能插座连接模式未知 (commMode 未上报)，仅 commMode=1 (本地连接) 时支持 MQTT 控制",
+            "Unknown commMode. MQTT control is only supported when commMode=1 (local).",
         )
     return (
         False,
-        f"智能插座 commMode={mode} 不支持 MQTT 直接控制，仅 commMode=1 (本地连接) 时可控",
+        f"Smart plug commMode={mode} does not support MQTT control. Only commMode=1 (local) is supported.",
     )
 
 
 def _subdevice_sn(item: dict[str, Any]) -> str | None:
-    """提取子设备 SN."""
+    """Extract sub-device SN."""
     return item.get("deviceSn") or item.get("sn")
 
 
 def is_ct_item_dev_type(dev_type: int | None) -> bool:
-    """数组元素 devType 是否为 CT/电表采集头/电表家族."""
+    """Check if devType belongs to CT/Meter family."""
     return dev_type in CT_ITEM_DEV_TYPES
 
 
 def subdevice_sensor_group(item: dict[str, Any], *, from_cts_array: bool = False) -> str:
-    """仅以数组元素 devType（及 cts 来源）判定传感器组，忽略 body.devType."""
+    """Determine sensor group based on devType and cts source, ignoring body.devType."""
     if from_cts_array or is_ct_item_dev_type(item.get("devType")):
         return "ct"
     return "plug"
 
 
 def should_create_plug_switch(item: dict[str, Any]) -> bool:
-    """仅为智能插座创建 switch 实体."""
+    """Only create switch entities for smart plugs."""
     return item.get("devType") in PLUG_ITEM_DEV_TYPES
 
 
@@ -309,7 +309,7 @@ def _merge_subdevice_list(
     existing: list[dict[str, Any]] | None,
     new_items: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """按 deviceSn 合并子设备列表，避免分条 type=101 互相覆盖."""
+    """Merge sub-devices by deviceSn to prevent type=101 messages from overwriting each other."""
     merged: dict[str, dict[str, Any]] = {}
     for item in (existing or []) + new_items:
         if not isinstance(item, dict):
@@ -322,7 +322,7 @@ def _merge_subdevice_list(
 
 
 def _all_subdevices_from_cache(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """从缓存汇总全部子设备（plugs + cts 去重）."""
+    """Aggregate all sub-devices from cache (plugs + cts deduplicated)."""
     result: list[dict[str, Any]] = []
     seen: set[str] = set()
     for key in ("plugs", "plug", "cts"):
@@ -344,7 +344,7 @@ def _merge_subdevice_arrays_into_cache(
     cache: dict[str, Any],
     body: dict[str, Any],
 ) -> bool:
-    """将 body 中的 plugs/cts 数组合并进缓存（type=101/102/25 等）."""
+    """Merge plugs/cts arrays from body into cache (type=101/102/25 etc)."""
     updated = False
     raw_plugs = (
         body.get("plug")
@@ -383,7 +383,7 @@ def _merge_subdevice_point_update(
     body: dict[str, Any],
     main_device_sn: str | None,
 ) -> bool:
-    """将单子设备增量字段（type=102 等）合并进 plugs/cts 缓存."""
+    """Merge single sub-device incremental updates (type=102 etc) into cache."""
     device_sn = _subdevice_sn(body)
     if not device_sn or device_sn == main_device_sn or device_sn == "system":
         return False
@@ -417,9 +417,9 @@ def _merge_subdevice_point_update(
     return False
 
 
-# 传感器配置
+# Sensor configuration
 SENSORS = {
-    # 设备状态
+    # Device Status
     "device_status": {
         "json_key": "stat",
         "name": "Status",
@@ -437,7 +437,7 @@ SENSORS = {
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    # 并网系统状态（type=106 全量属性）
+    # Grid-tied system status (type=106 full attributes)
     "ongrid_status": {
         "json_key": "ongridStat",
         "name": "OnGrid Status",
@@ -492,7 +492,7 @@ SENSORS = {
         "device_class": None,
         "state_class": None,
     },
-    # 电池相关
+    # Battery related
     "battery_soc": {
         "json_key": "batSoc",
         "name": "Battery SOC",
@@ -533,7 +533,7 @@ SENSORS = {
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    # 电池能量统计
+    # Battery energy statistics
     "battery_charge_energy": {
         "json_key": "batChgEgy",
         "name": "Battery Charge Energy",
@@ -553,7 +553,7 @@ SENSORS = {
         "scale": 0.01,
     },
 
-    # 太阳能
+    # Solar
     "solar_power": {
         "json_key": "pvPw",
         "name": "Solar Power",
@@ -640,7 +640,7 @@ SENSORS = {
         "scale": 0.01,
     },
 
-    # 电网相关
+    # Grid related
     "grid_import_power": { # Grid -> System (outOngridPw)
         "json_key": "inOngridPw",
         "name": "Grid Import Power",
@@ -684,7 +684,7 @@ SENSORS = {
         "state_class": SensorStateClass.MEASUREMENT,
     },
 
-    # EPS / AC Socket（App 展示逻辑：swEpsInPw>0 取输入，否则取输出）
+    # EPS / AC Socket (App logic: use input if swEpsInPw > 0, else output)
     "eps_output_power": {
         "json_key": "calc_ac_socket_power",
         "name": "AC Socket Power",
@@ -819,7 +819,7 @@ SENSORS = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    # 更多能量流向统计
+    # More energy flow statistics
     "ac_to_battery_energy": {
         "json_key": "acOtBatEgy",
         "name": "AC to Battery Energy",
@@ -903,9 +903,9 @@ SENSORS = {
     },
 }
 
-# 子设备传感器配置
+# Sub-device sensor configuration
 SUBDEVICE_SENSORS = {
-    # 智能插座 (devType=6 or 1)
+    # Smart Plug (devType=6 or 1)
     "plug": {
         "power": {
             "key": "outPw", # Fallback to 'power'
@@ -936,7 +936,7 @@ SUBDEVICE_SENSORS = {
             "icon": "mdi:current-ac",
         },
         "energy": {
-            "key": "phaseEgy", # Resolve by subType to A/B/C/Total（累计正向/购电电量）
+            "key": "phaseEgy", # Resolve by subType to A/B/C/Total (Forward/Buy Energy)
             "name": "Forward Energy",
             "unit": UnitOfEnergy.KILO_WATT_HOUR,
             "device_class": SensorDeviceClass.ENERGY,
@@ -945,7 +945,7 @@ SUBDEVICE_SENSORS = {
             "scale": 0.01, # Assumption
         },
         "energy_reverse": {
-            "key": "TnphaseEgy", # 累计反向/馈网电量（按总量取，兼容 tnPhaseEgy / 各相相加）
+            "key": "TnphaseEgy", # Reverse/Sell Energy (Total, compatible with tnPhaseEgy or sum of phases)
             "name": "Reverse Energy",
             "unit": UnitOfEnergy.KILO_WATT_HOUR,
             "device_class": SensorDeviceClass.ENERGY,
@@ -958,10 +958,10 @@ SUBDEVICE_SENSORS = {
 
 
 class JackeryDataCoordinator:
-    """协调器：管理MQTT订阅和数据获取，供所有传感器实体共享使用."""
+    """Coordinator: Manages MQTT subscriptions and data polling, shared by all entities."""
 
     def __init__(self, hass: HomeAssistant, topic_prefix: str, token: str, mqtt_host: str, device_sn: str) -> None:
-        """初始化协调器."""
+        """Initialize coordinator."""
         self.hass = hass
         self._topic_prefix = topic_prefix
         self._token = token
@@ -976,43 +976,43 @@ class JackeryDataCoordinator:
 
         self._known_plugs = set() # Set of known plug SNs
         self._subdevice_missing_since = {} # {sn: timestamp} for offline marking delay
-        self._device_type = None  # 主机 deviceType（用于型号展示）
-        self._soft_ver = None     # 固件合并包版本 softver
-        self._reauth_started = False  # 避免重复触发 Token 重认证
-        self._ever_received = False   # 自启动以来是否收到过本机有效消息
+        self._device_type = None  # Host deviceType (for model display)
+        self._soft_ver = None     # Firmware bundle version (softver)
+        self._reauth_started = False  # Prevent redundant Token re-auth triggers
+        self._ever_received = False   # Whether any valid message for this host was received since start
         self._start_time = time.time()
         self.add_entities_callback = None # Callback to add new entities
         self.add_switch_entities_callback = None # Callback to add new switch entities
         self._data_cache = {} # Cache for merged data from status and events
 
         # Topic patterns
-        # 二期需求：各主机使用独立的 MQTT 主题订阅，互不影响。
-        # device_sn 在配置时为必填，因此优先订阅本主机专属主题，实现彻底的任务隔离；
-        # 仅在极少数 device_sn 缺失场景下回退到通配符订阅 + 自动发现。
+        # Phase 2: Use independent MQTT topics for each host.
+        # device_sn is required; subscribe to host-specific topics for task isolation.
+        # Fallback to wildcard subscription + auto-discovery if device_sn is missing.
         sn_segment = self._device_sn if self._device_sn else "+"
         self._topic_status_wildcard = f"{self._topic_root}/device/{sn_segment}/status"
         self._topic_event_wildcard = f"{self._topic_root}/device/{sn_segment}/event"
 
     def _merge_normalized_cache(self, payload: dict[str, Any]) -> None:
-        """归一化字段别名后合并进主设备缓存."""
+        """Normalize aliases and merge into host cache."""
         self._data_cache.update(_normalize_payload_fields(payload))
 
     def register_sensor(self, sensor_id: str, entity: "JackerySensor") -> None:
-        """注册传感器实体."""
+        """Register sensor entity."""
         self._sensors[sensor_id] = entity
 
     def unregister_sensor(self, sensor_id: str) -> None:
-        """注销传感器实体."""
+        """Unregister sensor entity."""
         if sensor_id in self._sensors:
             del self._sensors[sensor_id]
 
     async def async_start(self) -> None:
-        """启动协调器."""
+        """Start coordinator."""
         if self._subscribed:
             return
 
         try:
-            # 订阅状态主题 (Wildcard) 以发现设备和接收数据
+            # Subscribe to status topic (wildcard) for discovery and data
             @callback
             def message_received(msg):
                 self._handle_message(msg)
@@ -1036,14 +1036,14 @@ class JackeryDataCoordinator:
 
             self._subscribed = True
 
-            # 启动定时轮询
+            # Start periodic polling
             self._data_task = asyncio.create_task(self._periodic_data_request())
 
         except Exception as e:
             _LOGGER.error(f"Failed to start coordinator: {e}")
 
     async def async_stop(self) -> None:
-        """停止协调器."""
+        """Stop coordinator."""
         if self._data_task and not self._data_task.done():
             self._data_task.cancel()
             try:
@@ -1053,7 +1053,7 @@ class JackeryDataCoordinator:
         _LOGGER.info("Coordinator stopped")
 
     def _handle_message(self, msg) -> None:
-        """处理接收到的 MQTT 消息."""
+        """Handle received MQTT message."""
         try:
             topic = msg.topic
             payload = msg.payload
@@ -1069,11 +1069,11 @@ class JackeryDataCoordinator:
                     self._device_sn = sn
                     _LOGGER.info(f"Discovered device SN: {self._device_sn}")
                 elif self._device_sn != sn:
-                    # 任务隔离：仅处理本协调器所属主机的消息，避免多主机数据串台
+                    # Task isolation: only handle messages for this host to prevent data contamination.
                     _LOGGER.debug(f"Ignoring data from another device: {sn}")
                     return
 
-            # 只有确认是本主机的消息才刷新心跳时间，保证离线判定准确
+            # Only update heartbeat for this host's messages to ensure accurate offline detection.
             self._last_update_time = time.time()
             self._ever_received = True
 
@@ -1089,8 +1089,8 @@ class JackeryDataCoordinator:
                         or body_sn == self._device_sn
                         or body_sn == "system"
                 )
-                # 捕获主机型号(deviceType)与固件版本(softver)
-                # 仅当确认是主机自己的报文时，才更新主机详情，防止被 CT/插座的 type=23 污染
+                # Capture host device model (deviceType) and firmware version (softver)
+                # Only when confirmed as host's own message to prevent CT/Plug type=23 contamination.
                 if is_main_device_msg and msg_code in (2, 23, 25, 106, 107):
                     self._capture_device_meta(raw_data, body)
 
@@ -1107,8 +1107,8 @@ class JackeryDataCoordinator:
                 # Type 23: Statistical/Energy Data
                 if msg_code == 23 and isinstance(body, dict):
                     device_sn_in_body = body.get("deviceSn")
-                    # 主设备统计：deviceSn 缺省、等于主机 SN，或为兼容写法 "system"
-                    # （历史 Bug：此前仅判断 == "system"，导致主机累计电量永远丢失）
+                    # Host statistics: deviceSn missing, matches host SN, or is "system"
+                    # (Bugfix: previously only checked "system", causing host energy data loss).
                     if (
                         not device_sn_in_body
                         or device_sn_in_body == self._device_sn
@@ -1126,7 +1126,7 @@ class JackeryDataCoordinator:
                                         item.update(body)
                                         break
 
-                # Type 106: 并网系统全量属性（type=105 查询的响应）
+                # Type 106: Grid-tied system full attributes (response to type=105)
                 elif msg_code == 106 and isinstance(body, dict):
                     _LOGGER.info(
                         "Received type 106 system full data for %s (%d fields)",
@@ -1135,7 +1135,7 @@ class JackeryDataCoordinator:
                     )
                     self._merge_normalized_cache(body)
 
-                # Type 107: 并网系统增量属性（soc、workMode）
+                # Type 107: Grid-tied system incremental updates (soc, workMode)
                 elif msg_code == 107 and isinstance(body, dict):
                     _LOGGER.debug(
                         "Received type 107 incremental update for %s: %s",
@@ -1144,7 +1144,7 @@ class JackeryDataCoordinator:
                     )
                     self._merge_normalized_cache(body)
 
-                # Type 102: 子设备实时增量（插座 switchSta/outPw、CT 功率等）
+                # Type 102: Sub-device real-time updates (plug switchSta/outPw, CT power, etc)
                 elif msg_code == 102 and isinstance(body, dict):
                     if not _merge_subdevice_arrays_into_cache(self._data_cache, body):
                         _merge_subdevice_point_update(
@@ -1199,22 +1199,22 @@ class JackeryDataCoordinator:
                         ):
                             existing_cts.append(p)
 
-                    # 二期需求：支持子设备移除。
-                    # 当收到 type=101 全量报文时，根据 body.devType 替换对应类型的缓存列表，而非简单合并。
+                    # Phase 2: Support sub-device removal.
+                    # Replace cache list for specific devType when receiving type=101 full report, instead of simple merge.
                     if body_query_devtype == 6:
-                        # 仅替换插座列表
+                        # Replace plug list
                         self._data_cache["plugs"] = plug_items
 
                         reported_plugs = {_subdevice_sn(p) for p in plug_items if _subdevice_sn(p)}
                         for sn in list(self._known_plugs):
-                            # 如果之前已知该设备，且这次全量没上报，说明被解绑了
+                            # If device was known but missing from full report, it has been unbound.
                             if sn not in reported_plugs and any(
                                     k.startswith(f"jackery_{self._device_sn}_plug_{sn}") for k in self._sensors
                             ):
                                 self._remove_subdevice_from_ha(sn)
 
                     elif body_query_devtype == 2:
-                        # 仅替换 CT 列表
+                        # Replace CT list
                         self._data_cache["cts"] = ct_items
 
                         reported_cts = {_subdevice_sn(c) for c in ct_items if _subdevice_sn(c)}
@@ -1225,7 +1225,7 @@ class JackeryDataCoordinator:
                                 self._remove_subdevice_from_ha(sn)
 
                     else:
-                        # 兼容逻辑：若未指定 devType，则按 SN 合并
+                        # Fallback: merge by SN if devType not specified
                         self._data_cache["plugs"] = _merge_subdevice_list(existing_plugs, plug_items)
                         self._data_cache["cts"] = _merge_subdevice_list(existing_cts, ct_items)
 
@@ -1253,7 +1253,7 @@ class JackeryDataCoordinator:
                             item.get("commState"),
                         )
 
-                # Type 25 or other payloads（主机字段 + 可选子设备数组/单条增量）
+                # Type 25 or other payloads (host fields + optional sub-device arrays/updates)
                 elif isinstance(body, dict) and body:
                     sub_updated = _merge_subdevice_arrays_into_cache(
                         self._data_cache, body
@@ -1289,7 +1289,7 @@ class JackeryDataCoordinator:
             # operate on copy or direct? Direct is fine.
             self._data_cache = self._calculate_energy_flow(self._data_cache)
             
-            # Check for new plugs
+            # Sync plugs/CTs (add new devices; mark offline sub-devices as Unavailable)
             self._check_for_new_plugs(self._data_cache)
 
             self._distribute_data(self._data_cache)
@@ -1298,7 +1298,7 @@ class JackeryDataCoordinator:
             _LOGGER.error(f"Error handling message: {e}")
 
     def _check_for_new_plugs(self, data: dict) -> None:
-        """检查并同步插座/CT（添加新设备；离线子设备标记 Unavailable）."""
+        """Sync plugs/CTs (add new devices; mark offline sub-devices as Unavailable)."""
         subdevices = _all_subdevices_from_cache(data)
         if not subdevices and data.get("plugs") is None and data.get("cts") is None:
             return
@@ -1311,7 +1311,7 @@ class JackeryDataCoordinator:
         
         now = time.time()
 
-        # 1. 更新 missing 状态
+        # 1. Update missing status
         for sn in current_sns:
             if sn in self._subdevice_missing_since:
                 _LOGGER.info(f"Sub-device {sn} reappeared, cancelling offline timer.")
@@ -1323,8 +1323,8 @@ class JackeryDataCoordinator:
                     self._subdevice_missing_since[sn] = now
                     _LOGGER.info(f"Sub-device {sn} missing, starting {OFFLINE_TIMEOUT}s offline timer...")
 
-        # 2. 子设备离线处理：超过 OFFLINE_TIMEOUT 未出现则标记实体为 Unavailable
-        #    （二期需求：数据消失标记 Unavailable，重新出现自动恢复；不删除实体）
+        # 2. Sub-device offline handling: mark as Unavailable if missing for >OFFLINE_TIMEOUT
+        #    (Phase 2: mark Unavailable if data disappears, recover automatically; do not delete entity)
         for sn in current_sns:
             self._set_subdevice_available(sn, True)
 
@@ -1338,7 +1338,7 @@ class JackeryDataCoordinator:
                 _LOGGER.info(f"Sub-device {sn} missing for >{OFFLINE_TIMEOUT}s. Marking unavailable.")
                 self._set_subdevice_available(sn, False)
 
-        # 3. 处理新增
+        # 3. Handle new devices
         ct_sns = {
             sn
             for item in (data.get("cts") or [])
@@ -1396,7 +1396,7 @@ class JackeryDataCoordinator:
         return _all_subdevices_from_cache(self._data_cache)
 
     def _find_plug_in_cache(self, plug_sn: str) -> dict[str, Any] | None:
-        """从缓存查找智能插座条目。"""
+        """Find smart plug entry in cache."""
         for key in ("plugs", "plug"):
             items = self._data_cache.get(key)
             if not isinstance(items, list):
@@ -1407,14 +1407,14 @@ class JackeryDataCoordinator:
         return None
 
     def get_plug_item(self, plug_sn: str) -> dict[str, Any]:
-        """获取插座最新缓存（控制校验与实体展示统一数据源）。"""
+        """Get latest plug cache (unified source for control validation and UI)."""
         return dict(self._find_plug_in_cache(plug_sn) or {})
 
     async def async_control_subdevice_switch(self, plug_sn: str, dev_type: int, is_on: bool) -> None:
-        """Control sub-device switch via type 103（仅 commMode=1 本地连接）。"""
+        """Control sub-device switch via type 103 (local commMode=1 only)."""
         if not self._device_sn:
             _LOGGER.warning("Cannot control sub-device: device SN not discovered")
-            raise HomeAssistantError("主机 SN 未发现，无法下发插座控制指令")
+            raise HomeAssistantError("Host SN not discovered, cannot control plug")
 
         plug_item = self._find_plug_in_cache(plug_sn) or {}
         allowed, reason = plug_mqtt_control_allowed(plug_item)
@@ -1456,7 +1456,7 @@ class JackeryDataCoordinator:
         self._distribute_data(self._data_cache)
 
     def _apply_plug_switch_cache(self, plug_sn: str, is_on: bool) -> None:
-        """控制指令发出后乐观更新插座开关缓存（switchSta）。"""
+        """Optimistically update plug switch cache (switchSta) after control command."""
         switch_val = 1 if is_on else 0
         for key in ("plugs", "plug"):
             items = self._data_cache.get(key)
@@ -1496,10 +1496,10 @@ class JackeryDataCoordinator:
         )
 
     def _capture_device_meta(self, raw_data: dict, body) -> None:
-        """从报文中捕获主机 deviceType 与固件版本 softver，并按需刷新设备详情.
+        """Capture host deviceType and softver from message, update device details if needed.
 
-        - deviceType：位于报文顶层（见协议 type=25/2 示例）。
-        - softver：设备固件合并包版本，可能出现在顶层或 body 中。
+        - deviceType: located at top level (see type=25/2 examples).
+        - softver: firmware bundle version, can be at top level or in body.
         """
         changed = False
 
@@ -1519,7 +1519,7 @@ class JackeryDataCoordinator:
             self._update_device_registry()
 
     def _update_device_registry(self) -> None:
-        """根据 deviceType/softver 动态更新 HA 设备详情中的型号与固件版本."""
+        """Dynamically update HA device model and firmware version based on deviceType/softver."""
         entry_id = getattr(self, "config_entry_id", None)
         if not entry_id:
             return
@@ -1542,11 +1542,11 @@ class JackeryDataCoordinator:
             dev_reg.async_update_device(device.id, **updates)
 
     def _trigger_reauth(self, reason: str = "") -> None:
-        """触发 HA 集成页面的 "Reauthentication Required".
+        """Trigger HA integration page "Reauthentication Required".
 
-        说明：设备拒绝 Token 时不会回复任何报文（业务方确认），因此无法从某条报文
-        直接判定鉴权失败。这里采用启发式：自配置完成后持续下发指令但长时间从未收到
-        任何本机消息，则极可能是 Token 无效（或 SN 配错），提示用户重新输入 Token。
+        Note: Device does not respond when Token is rejected (confirmed by vendor).
+        Cannot determine auth failure from a single message. Using heuristic: if no response
+        received for a long time after setup, Token is likely invalid (or SN is wrong).
         """
         if self._reauth_started:
             return
@@ -1565,16 +1565,16 @@ class JackeryDataCoordinator:
 
     def _calculate_energy_flow(self, data: dict) -> dict:
         """
-        按 App 端公式计算能量流（优先 type=106 systemBody 字段）.
+        Calculate energy flow using App formulas (prioritize type=106 systemBody).
 
-        Grid: inGridSidePw - outGridSidePw，异常时回退 gridInPw - gridOutPw（与 App 一致）
-        Ongrid: gridInPw - gridOutPw（回退 inOngridPw - outOngridPw）
-        AC Socket: swEpsInPw > 0 ? swEpsInPw : swEpsOutPw（type=25 设备级）
-        Battery: 优先 batInPw/batOutPw（type=106）；否则 pv + ac + ong
-        Home: grid - ong；无电网数据时回退 otherLoadPw
+        Grid: inGridSidePw - outGridSidePw, fallback to gridInPw - gridOutPw (matches App)
+        Ongrid: gridInPw - gridOutPw (fallback to inOngridPw - outOngridPw)
+        AC Socket: swEpsInPw > 0 ? swEpsInPw : swEpsOutPw (device-level type=25)
+        Battery: prioritize type=106 batInPw/batOutPw; else pv + ac + ong
+        Home: grid - ong; fallback to otherLoadPw if grid data is missing
         """
         try:
-            # 1. PV（设备级 type=25，系统级 type=106 通常不含 pvPw）
+            # 1. PV (device-level type=25; system-level type=106 usually lacks pvPw)
             pv_val = data.get("pvPw", 0)
             if isinstance(pv_val, dict):
                 pv = _safe_float(
@@ -1583,7 +1583,7 @@ class JackeryDataCoordinator:
             else:
                 pv = _safe_float(pv_val)
 
-            # 2. 并网口功率 ong（多源候选，避免 type=106 零值阻断 type=25 回退）
+            # 2. Grid-tied port power ong (multi-source, prevents type=106 zero from blocking type=25 fallback)
             grid_in = _safe_float(data.get("gridInPw"))
             grid_out = _safe_float(data.get("gridOutPw"))
             ongrid_charge = _safe_float(data.get("inOngridPw"))
@@ -1600,13 +1600,13 @@ class JackeryDataCoordinator:
                 out_grid_side,
             )
 
-            # 3. AC Socket（设备级 swEps*）
+            # 3. AC Socket (device-level swEps*)
             ac_in = _safe_float(data.get("swEpsInPw"))
             ac_out = _safe_float(data.get("swEpsOutPw"))
             p_ac = ac_in - ac_out
             ac_socket = ac_in if ac_in > 0 else ac_out
 
-            # 4. CT 电表（仅在有可信实时功率时优先于系统侧推算）
+            # 4. CT Meter (prioritized over system-side estimation if reliable)
             grid_available = False
             grid_buy = 0.0
             grid_sell = 0.0
@@ -1620,7 +1620,7 @@ class JackeryDataCoordinator:
                     ct_available = True
                     grid_available = True
 
-            # 5. 电网净功率（CT 可信时用 CT，否则系统/设备级回退链）
+            # 5. Net grid power (use CT if reliable, else system/device-level fallback chain)
             p_grid = 0.0
             if ct_available:
                 p_grid = grid_buy - grid_sell
@@ -1643,7 +1643,7 @@ class JackeryDataCoordinator:
                     out_grid_side,
                 )
 
-            # 7. 电池功率：优先 type=106 的 batInPw/batOutPw，否则 App 公式 pv+ac+ong
+            # 7. Battery power: prioritize type=106 batInPw/batOutPw, else App formula pv+ac+ong
             bat_in = _safe_float(data.get("batInPw"))
             bat_out = _safe_float(data.get("batOutPw"))
             has_system_bat = (
@@ -1658,7 +1658,7 @@ class JackeryDataCoordinator:
                 calc_batt_charge = max(0.0, p_batt)
                 calc_batt_discharge = max(0.0, -p_batt)
 
-            # 8. 家庭负载
+            # 8. Home load
             p_home = 0.0
             if grid_available:
                 p_home = p_grid - p_ong
@@ -1715,7 +1715,7 @@ class JackeryDataCoordinator:
         return data
 
     def _distribute_data(self, data: dict) -> None:
-        """分发数据给传感器."""
+        """Distribute data to sensors."""
         for sensor_id, entity in self._sensors.items():
             entity._update_from_coordinator(data)
 
@@ -1727,7 +1727,7 @@ class JackeryDataCoordinator:
                 entity.async_write_ha_state()
 
     def _entity_keys_for_subdevice(self, sn: str) -> list[str]:
-        """精确匹配某个子设备 SN 对应的已注册实体 key（包含主机 SN 前缀）."""
+        """Match registered entity keys for a sub-device SN (includes host SN prefix)."""
         keys = []
         prefix_plug = f"jackery_{self._device_sn}_plug_{sn}_"
         prefix_ct = f"jackery_{self._device_sn}_ct_{sn}_"
@@ -1743,7 +1743,7 @@ class JackeryDataCoordinator:
         return keys
 
     def _set_subdevice_available(self, sn: str, available: bool) -> None:
-        """设置某个子设备所有实体的可用状态."""
+        """Set availability for all entities of a sub-device."""
         for sensor_id in self._entity_keys_for_subdevice(sn):
             entity = self._sensors.get(sensor_id)
             if entity is None:
@@ -1753,9 +1753,9 @@ class JackeryDataCoordinator:
                 entity.async_write_ha_state()
 
     def _remove_subdevice_from_ha(self, sn: str) -> None:
-        """从 Home Assistant 中彻底删除已被解绑的子设备及其附属实体."""
+        """Remove unbound sub-device and its entities from Home Assistant."""
         dev_reg = dr.async_get(self.hass)
-        # 这里的 identifiers 必须和 JackerySubDeviceSensor 中定义的一致
+        # Identifiers must match JackerySubDeviceSensor definition
         device = dev_reg.async_get_device(identifiers={(DOMAIN, f"sub_{self._device_sn}_{sn}")})
 
         if device:
@@ -1774,7 +1774,7 @@ class JackeryDataCoordinator:
             self.unregister_sensor(k)
 
     async def _periodic_data_request(self) -> None:
-        """定期发送 'type: 25' 和 'type: 100' 指令."""
+        """Periodically send 'type: 25' and 'type: 100' commands."""
         _LOGGER.info(f"Starting periodic data polling for {self._device_sn} via {self._mqtt_host}...")
         await asyncio.sleep(2)
 
@@ -1821,7 +1821,7 @@ class JackeryDataCoordinator:
                 except Exception as e:
                     _LOGGER.warning(f"Error polling device status (Type 25): {e}")
 
-                # 1b. Poll System Full Data (Type 105) - 并网系统全量属性（设备以 type=106 响应）
+                # 1b. Poll System Full Data (Type 105) - Grid-tied system full attributes (device responds with type=106)
                 try:
                     payload_105 = {
                         "type": 105,
@@ -1842,7 +1842,7 @@ class JackeryDataCoordinator:
                 except Exception as e:
                     _LOGGER.warning(f"Error polling system full data (Type 105): {e}")
 
-                # 2. Poll Sub-devices (Type 100) - devType=2 CT 家族；devType=6 智能插座
+                # 2. Poll Sub-devices (Type 100) - devType=2 CT family; devType=6 Smart Plug
                 for poll_dev_type in (2, 6):
                     try:
                         payload_100 = {
@@ -1984,7 +1984,7 @@ class JackerySensor(SensorEntity):
             except (TypeError, ValueError):
                 self._attr_native_value = None
         elif value_map is not None:
-            # 通用枚举映射（如 ongridStat/ctStat/gridSate），未命中保留原始值
+            # Generic enum mapping (e.g. ongridStat/ctStat/gridSate), keep original value if not found
             try:
                 self._attr_native_value = value_map.get(int(value), value)
             except (TypeError, ValueError):
@@ -2023,7 +2023,7 @@ class JackerySensor(SensorEntity):
             "device_sn": self._coordinator._device_sn,
             "raw_key": self._config.get("json_key"),
         }
-        # funcEnable 按 bit 解码功能使能位，便于排查
+        # funcEnable bit decoding for troubleshooting
         if self._sensor_id == "func_enable":
             raw = self._coordinator._data_cache.get("funcEnable")
             try:
@@ -2125,7 +2125,7 @@ class JackerySubDeviceSensor(SensorEntity):
                 elif sub_type == 2:
                     val = my_plug.get("BphasePw") or my_plug.get("bPhasePw")
                 elif sub_type == 3:
-                    # C 相（单相：A+B 路）
+                    # C Phase (Single phase: A+B)
                     val = my_plug.get("CphasePw") or my_plug.get("cPhasePw")
                     if not val:
                         a_pw = my_plug.get("AphasePw") or my_plug.get("aPhasePw") or 0
@@ -2140,7 +2140,7 @@ class JackerySubDeviceSensor(SensorEntity):
                 elif sub_type == 2:
                     val = my_plug.get("BphaseEgy") or my_plug.get("bPhaseEgy")
                 elif sub_type == 3:
-                    # C 相（单相：A+B 路）
+                    # C Phase (Single phase: A+B)
                     val = my_plug.get("CphaseEgy") or my_plug.get("cPhaseEgy")
                     if not val:
                         a_egy = my_plug.get("AphaseEgy") or my_plug.get("aPhaseEgy") or 0
