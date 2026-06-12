@@ -1,16 +1,15 @@
 {
-    "domain": "jackery",
-    "name": "Jackery",
-    "codeowners": [
-        "@ht-it-lab"
-    ],
-    "config_flow": true,
-    "dependencies": [
-        "mqtt"
-    ],
-    "documentation": "https://github.com/ht-it-lab/jackery",
-    "issue_tracker": "https://github.com/ht-it-lab/jackery/issues",
-    "iot_class": "local_push",
-//    "version": "2.0.0-beta.1"
-    "version": "v2.0-beta"
+  "domain": "jackery",
+  "name": "Jackery",
+  "codeowners": [
+    "@ht-it-lab"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "mqtt"
+  ],
+  "documentation": "https://github.com/ht-it-lab/jackery",
+  "issue_tracker": "https://github.com/ht-it-lab/jackery/issues",
+  "iot_class": "local_push",
+  "version": "1.1.62"
 }

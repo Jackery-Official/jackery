@@ -1190,8 +1190,19 @@ class JackeryDataCoordinator:
                         ):
                             existing_cts.append(p)
 
-                    self._data_cache["plugs"] = _merge_subdevice_list(existing_plugs, plug_items)
-                    self._data_cache["cts"] = _merge_subdevice_list(existing_cts, ct_items)
+                    # 二期需求：支持子设备移除。
+                    # 当收到 type=101 全量报文时，根据 body.devType 替换对应类型的缓存列表，而非简单合并。
+                    if body_query_devtype == 6:
+                        # 仅替换插座列表
+                        self._data_cache["plugs"] = plug_items
+                    elif body_query_devtype == 2:
+                        # 仅替换 CT 列表
+                        self._data_cache["cts"] = ct_items
+                    else:
+                        # 兼容逻辑：若未指定 devType，则按 SN 合并
+                        self._data_cache["plugs"] = _merge_subdevice_list(existing_plugs, plug_items)
+                        self._data_cache["cts"] = _merge_subdevice_list(existing_cts, ct_items)
+
                     self._data_cache["plug"] = self._data_cache["plugs"]
 
                     _LOGGER.info(
@@ -1690,13 +1701,17 @@ class JackeryDataCoordinator:
                 entity.async_write_ha_state()
 
     def _entity_keys_for_subdevice(self, sn: str) -> list[str]:
-        """精确匹配某个子设备 SN 对应的已注册实体 key（避免 SN 包含关系误匹配）."""
+        """精确匹配某个子设备 SN 对应的已注册实体 key（包含主机 SN 前缀）."""
         keys = []
+        prefix_plug = f"jackery_{self._device_sn}_plug_{sn}_"
+        prefix_ct = f"jackery_{self._device_sn}_ct_{sn}_"
+        switch_id = f"jackery_{self._device_sn}_plug_{sn}_switch"
+        
         for sensor_id in self._sensors:
             if (
-                sensor_id.startswith(f"jackery_plug_{sn}_")
-                or sensor_id.startswith(f"jackery_ct_{sn}_")
-                or sensor_id == f"plug_switch_{sn}"
+                sensor_id.startswith(prefix_plug)
+                or sensor_id.startswith(prefix_ct)
+                or sensor_id == switch_id
             ):
                 keys.append(sensor_id)
         return keys
@@ -2007,13 +2022,14 @@ class JackerySubDeviceSensor(SensorEntity):
         self._attr_device_class = self._sensor_config.get("device_class")
         self._attr_state_class = self._sensor_config.get("state_class")
         
-        # Unique ID: jackery_ct_{sn}_power, jackery_plug_{sn}_energy, etc.
+        # Unique ID: jackery_{device_sn}_ct_{sn}_power, jackery_{device_sn}_plug_{sn}_energy, etc.
         safe_key = self._sensor_key.replace("_", "") # e.g. energy_import -> energyimport
-        self._attr_unique_id = f"jackery_{device_name.lower()}_{plug_sn}_{safe_key}"
+        device_sn = getattr(coordinator, "_device_sn", "")
+        self._attr_unique_id = f"jackery_{device_sn}_{device_name.lower()}_{plug_sn}_{safe_key}"
         self._attr_has_entity_name = True
 
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, f"sub_{plug_sn}")}, 
+            "identifiers": {(DOMAIN, f"sub_{device_sn}_{plug_sn}")}, 
             "via_device": (DOMAIN, config_entry_id),
             "name": f"Jackery {device_name} {plug_sn}",
             "manufacturer": "Jackery",

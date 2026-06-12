@@ -93,12 +93,13 @@ class JackeryPlugSwitch(SwitchEntity):
         self._coordinator = coordinator
         self._raw_data = {}
 
+        device_sn = getattr(coordinator, "_device_sn", "")
         self._attr_name = "Switch"
-        self._attr_unique_id = f"jackery_plug_{plug_sn}_switch"
+        self._attr_unique_id = f"jackery_{device_sn}_plug_{plug_sn}_switch"
         self._attr_has_entity_name = True
 
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, f"sub_{plug_sn}")},
+            "identifiers": {(DOMAIN, f"sub_{device_sn}_{plug_sn}")},
             "via_device": (DOMAIN, config_entry_id),
             "name": f"Jackery Plug {plug_sn}",
             "manufacturer": "Jackery",
@@ -111,10 +112,10 @@ class JackeryPlugSwitch(SwitchEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self._coordinator.register_sensor(f"plug_switch_{self._plug_sn}", self)
+        self._coordinator.register_sensor(self._attr_unique_id, self)
 
     async def async_will_remove_from_hass(self) -> None:
-        self._coordinator.unregister_sensor(f"plug_switch_{self._plug_sn}")
+        self._coordinator.unregister_sensor(self._attr_unique_id)
         await super().async_will_remove_from_hass()
 
     def _plug_item(self) -> dict[str, Any]:

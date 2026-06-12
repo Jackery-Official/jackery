@@ -17,8 +17,7 @@ async def _migrate_unique_ids(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """将一期的旧 unique_id 迁移为带 device_sn 的新格式，以保留历史数据.
 
     旧格式：jackery_{sensor_id} / jackery_main_{key}
-    新格式：jackery_{sn}_{sensor_id} / jackery_{sn}_main_{key}
-    子设备实体（jackery_plug_* / jackery_ct_* / plug_switch_*）本身已含子设备 SN，保持不变。
+    新格式：jackery_{sn}_{sensor_id} / jackery_{sn}_main_{key} / jackery_{sn}_plug_{plug_sn}_{key}
     """
     device_sn = entry.data.get("device_sn")
     if not device_sn:
@@ -29,15 +28,16 @@ async def _migrate_unique_ids(hass: HomeAssistant, entry: ConfigEntry) -> None:
     @callback
     def _update(registry_entry: er.RegistryEntry) -> dict | None:
         old = registry_entry.unique_id
-        # 已迁移或本身为子设备实体则跳过
-        if (
-            old.startswith(new_prefix)
-            or old.startswith("jackery_plug_")
-            or old.startswith("jackery_ct_")
-        ):
+        # 已迁移则跳过
+        if old.startswith(new_prefix):
             return None
+
         if old.startswith("jackery_main_"):
             return {"new_unique_id": old.replace("jackery_main_", f"{new_prefix}main_", 1)}
+        if old.startswith("jackery_plug_"):
+            return {"new_unique_id": old.replace("jackery_plug_", f"{new_prefix}plug_", 1)}
+        if old.startswith("jackery_ct_"):
+            return {"new_unique_id": old.replace("jackery_ct_", f"{new_prefix}ct_", 1)}
         if old.startswith("jackery_"):
             return {"new_unique_id": old.replace("jackery_", new_prefix, 1)}
         return None
