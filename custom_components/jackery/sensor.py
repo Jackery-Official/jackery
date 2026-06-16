@@ -65,7 +65,7 @@ FUNC_ENABLE_BITS = {
 DEVICE_TYPE_MODEL_MAP = {
     1: "Battery Pack",
     2: "CT/Meter Collector/Meter",
-    3: "CT",
+    3: "DIY3",
     4: "Meter Collector",
 }
 DEFAULT_MODEL = "Energy Monitor"
@@ -321,10 +321,12 @@ def _merge_subdevice_list(
     return list(merged.values())
 
 
-def _all_subdevices_from_cache(data: dict[str, Any]) -> list[dict[str, Any]]:
+def _all_subdevices_from_cache(data: dict[str, Any], main_device_sn: str | None = None) -> list[dict[str, Any]]:
     """Aggregate all sub-devices from cache (plugs + cts deduplicated)."""
     result: list[dict[str, Any]] = []
     seen: set[str] = set()
+    if main_device_sn:
+        seen.add(main_device_sn)
     for key in ("plugs", "plug", "cts"):
         items = data.get(key)
         if not isinstance(items, list):
@@ -343,6 +345,7 @@ def _all_subdevices_from_cache(data: dict[str, Any]) -> list[dict[str, Any]]:
 def _merge_subdevice_arrays_into_cache(
     cache: dict[str, Any],
     body: dict[str, Any],
+    main_device_sn: str | None = None,
 ) -> bool:
     """Merge plugs/cts arrays from body into cache (type=101/102/25 etc)."""
     updated = False
@@ -356,6 +359,9 @@ def _merge_subdevice_arrays_into_cache(
         plug_items: list[dict[str, Any]] = []
         for item in raw_plugs:
             if not isinstance(item, dict):
+                continue
+            sn = _subdevice_sn(item)
+            if sn and sn == main_device_sn:
                 continue
             entry = dict(item)
             if entry.get("devType") is None:
@@ -372,7 +378,14 @@ def _merge_subdevice_arrays_into_cache(
 
     raw_cts = body.get("ct") or body.get("cts")
     if isinstance(raw_cts, list) and raw_cts:
-        ct_items = [dict(item) for item in raw_cts if isinstance(item, dict)]
+        ct_items = []
+        for item in raw_cts:
+            if not isinstance(item, dict):
+                continue
+            sn = _subdevice_sn(item)
+            if sn and sn == main_device_sn:
+                continue
+            ct_items.append(dict(item))
         cache["cts"] = _merge_subdevice_list(cache.get("cts"), ct_items)
         updated = True
     return updated
@@ -1146,7 +1159,7 @@ class JackeryDataCoordinator:
 
                 # Type 102: Sub-device real-time updates (plug switchSta/outPw, CT power, etc)
                 elif msg_code == 102 and isinstance(body, dict):
-                    if not _merge_subdevice_arrays_into_cache(self._data_cache, body):
+                    if not _merge_subdevice_arrays_into_cache(self._data_cache, body, self._device_sn):
                         _merge_subdevice_point_update(
                             self._data_cache, body, self._device_sn
                         )
@@ -1168,6 +1181,9 @@ class JackeryDataCoordinator:
                         for item in raw_plugs:
                             if not isinstance(item, dict):
                                 continue
+                            sn = _subdevice_sn(item)
+                            if sn and sn == self._device_sn:
+                                continue
                             entry = dict(item)
                             if entry.get("devType") is None:
                                 entry["devType"] = 6
@@ -1176,8 +1192,12 @@ class JackeryDataCoordinator:
                     ct_items: list[dict[str, Any]] = []
                     if isinstance(raw_cts, list):
                         for item in raw_cts:
-                            if isinstance(item, dict):
-                                ct_items.append(dict(item))
+                            if not isinstance(item, dict):
+                                continue
+                            sn = _subdevice_sn(item)
+                            if sn and sn == self._device_sn:
+                                continue
+                            ct_items.append(dict(item))
 
                     existing_plugs = [
                         p
@@ -1256,7 +1276,7 @@ class JackeryDataCoordinator:
                 # Type 25 or other payloads (host fields + optional sub-device arrays/updates)
                 elif isinstance(body, dict) and body:
                     sub_updated = _merge_subdevice_arrays_into_cache(
-                        self._data_cache, body
+                        self._data_cache, body, self._device_sn
                     )
                     point_updated = _merge_subdevice_point_update(
                         self._data_cache, body, self._device_sn
@@ -1299,7 +1319,7 @@ class JackeryDataCoordinator:
 
     def _check_for_new_plugs(self, data: dict) -> None:
         """Sync plugs/CTs (add new devices; mark offline sub-devices as Unavailable)."""
-        subdevices = _all_subdevices_from_cache(data)
+        subdevices = _all_subdevices_from_cache(data, self._device_sn)
         if not subdevices and data.get("plugs") is None and data.get("cts") is None:
             return
 
@@ -1393,7 +1413,7 @@ class JackeryDataCoordinator:
 
     def get_subdevices(self) -> list[dict[str, Any]]:
         """Return latest sub-device list from cache."""
-        return _all_subdevices_from_cache(self._data_cache)
+        return _all_subdevices_from_cache(self._data_cache, self._device_sn)
 
     def _find_plug_in_cache(self, plug_sn: str) -> dict[str, Any] | None:
         """Find smart plug entry in cache."""
