@@ -143,7 +143,6 @@ class JackeryPlugSwitch(SwitchEntity):
             return
 
         self._raw_data = dict(my_plug)
-        self._attr_available = True
 
         val = my_plug.get("switchSta")
         if val is None:

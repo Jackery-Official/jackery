@@ -988,7 +988,7 @@ class JackeryDataCoordinator:
         self._last_update_time = time.time()
 
         self._known_plugs = set() # Set of known plug SNs
-        self._subdevice_missing_since = {} # {sn: timestamp} for offline marking delay
+        self._subdevice_last_seen = {} # {sn: timestamp} for independent offline detection
         self._device_type = None  # Host deviceType (for model display)
         self._soft_ver = None     # Firmware bundle version (softver)
         self._reauth_started = False  # Prevent redundant Token re-auth triggers
@@ -1018,6 +1018,11 @@ class JackeryDataCoordinator:
         """Unregister sensor entity."""
         if sensor_id in self._sensors:
             del self._sensors[sensor_id]
+
+    def _record_subdevice_seen(self, sn: str | None) -> None:
+        """Record the timestamp when a sub-device was last seen in a message."""
+        if sn and sn != self._device_sn and sn != "system":
+            self._subdevice_last_seen[sn] = time.time()
 
     async def async_start(self) -> None:
         """Start coordinator."""
@@ -1130,6 +1135,7 @@ class JackeryDataCoordinator:
                         self._merge_normalized_cache(body)
                     else:
                         # Find and update sub-device in cache
+                        self._record_subdevice_seen(device_sn_in_body)
                         # Search in plugs and cts
                         for key in ["plugs", "plug", "cts"]:
                             items = self._data_cache.get(key)
@@ -1159,10 +1165,16 @@ class JackeryDataCoordinator:
 
                 # Type 102: Sub-device real-time updates (plug switchSta/outPw, CT power, etc)
                 elif msg_code == 102 and isinstance(body, dict):
+                    self._record_subdevice_seen(_subdevice_sn(body))
                     if not _merge_subdevice_arrays_into_cache(self._data_cache, body, self._device_sn):
                         _merge_subdevice_point_update(
                             self._data_cache, body, self._device_sn
                         )
+                    # Also check arrays in type 102
+                    for key in ("plugs", "plug", "cts"):
+                        for item in (body.get(key) or []):
+                            if isinstance(item, dict):
+                                self._record_subdevice_seen(_subdevice_sn(item))
 
                 # Type 101: Sub-device full data
                 elif msg_code == 101 and isinstance(body, dict):
@@ -1184,6 +1196,7 @@ class JackeryDataCoordinator:
                             sn = _subdevice_sn(item)
                             if sn and sn == self._device_sn:
                                 continue
+                            self._record_subdevice_seen(sn)
                             entry = dict(item)
                             if entry.get("devType") is None:
                                 entry["devType"] = 6
@@ -1197,6 +1210,7 @@ class JackeryDataCoordinator:
                             sn = _subdevice_sn(item)
                             if sn and sn == self._device_sn:
                                 continue
+                            self._record_subdevice_seen(sn)
                             ct_items.append(dict(item))
 
                     existing_plugs = [
@@ -1273,8 +1287,25 @@ class JackeryDataCoordinator:
                             item.get("commState"),
                         )
 
+                # Type 123: Error/Auth Notifications
+                elif msg_code == 123 and isinstance(body, dict):
+                    error_code = body.get("errorCode")
+                    if error_code == 401:
+                        _LOGGER.error(
+                            "Device %s reported TOKEN mismatch (errorCode 401). Triggering re-authentication.",
+                            self._device_sn,
+                        )
+                        self._trigger_reauth("device reported token mismatch (123/401)")
+
                 # Type 25 or other payloads (host fields + optional sub-device arrays/updates)
                 elif isinstance(body, dict) and body:
+                    self._record_subdevice_seen(_subdevice_sn(body))
+                    # Check arrays in body
+                    for key in ("plugs", "plug", "cts"):
+                        for item in (body.get(key) or []):
+                            if isinstance(item, dict):
+                                self._record_subdevice_seen(_subdevice_sn(item))
+
                     sub_updated = _merge_subdevice_arrays_into_cache(
                         self._data_cache, body, self._device_sn
                     )
@@ -1318,47 +1349,28 @@ class JackeryDataCoordinator:
             _LOGGER.error(f"Error handling message: {e}")
 
     def _check_for_new_plugs(self, data: dict) -> None:
-        """Sync plugs/CTs (add new devices; mark offline sub-devices as Unavailable)."""
+        """Sync plugs/CTs and update availability based on independent last_seen timers."""
         subdevices = _all_subdevices_from_cache(data, self._device_sn)
-        if not subdevices and data.get("plugs") is None and data.get("cts") is None:
-            return
-
-        current_sns = set()
-        for item in subdevices:
-            sn = _subdevice_sn(item)
-            if sn:
-                current_sns.add(sn)
-        
         now = time.time()
 
-        # 1. Update missing status
-        for sn in current_sns:
-            if sn in self._subdevice_missing_since:
-                _LOGGER.info(f"Sub-device {sn} reappeared, cancelling offline timer.")
-                del self._subdevice_missing_since[sn]
+        # 1. Update availability for all known sub-devices
+        for sn in list(self._known_plugs):
+            last_seen = self._subdevice_last_seen.get(sn, 0)
+            is_available = (now - last_seen) <= OFFLINE_TIMEOUT
+            
+            # Special case: if we just started, give it some grace period if we haven't seen it yet
+            if last_seen == 0 and (now - self._start_time) < OFFLINE_TIMEOUT:
+                is_available = True
 
-        for sn in self._known_plugs:
-            if sn not in current_sns:
-                if sn not in self._subdevice_missing_since:
-                    self._subdevice_missing_since[sn] = now
-                    _LOGGER.info(f"Sub-device {sn} missing, starting {OFFLINE_TIMEOUT}s offline timer...")
+            self._set_subdevice_available(sn, is_available)
+            
+            if not is_available:
+                _LOGGER.debug("Sub-device %s is offline (last seen %ds ago)", sn, int(now - last_seen))
 
-        # 2. Sub-device offline handling: mark as Unavailable if missing for >OFFLINE_TIMEOUT
-        #    (Phase 2: mark Unavailable if data disappears, recover automatically; do not delete entity)
-        for sn in current_sns:
-            self._set_subdevice_available(sn, True)
+        # 2. Handle new devices
+        if not subdevices:
+            return
 
-        for sn in list(self._subdevice_missing_since.keys()):
-            if sn not in self._known_plugs or sn in current_sns:
-                del self._subdevice_missing_since[sn]
-                continue
-
-            missing_time = self._subdevice_missing_since[sn]
-            if now - missing_time > OFFLINE_TIMEOUT:
-                _LOGGER.info(f"Sub-device {sn} missing for >{OFFLINE_TIMEOUT}s. Marking unavailable.")
-                self._set_subdevice_available(sn, False)
-
-        # 3. Handle new devices
         ct_sns = {
             sn
             for item in (data.get("cts") or [])
@@ -1380,6 +1392,7 @@ class JackeryDataCoordinator:
                     sensor_group,
                 )
                 self._known_plugs.add(sn)
+                self._subdevice_last_seen[sn] = now # Mark as seen now
 
                 if hasattr(self, "config_entry_id"):
                     group_config = SUBDEVICE_SENSORS.get(sensor_group, {})
@@ -1785,8 +1798,8 @@ class JackeryDataCoordinator:
         # 清理内存缓存
         if sn in self._known_plugs:
             self._known_plugs.remove(sn)
-        if sn in self._subdevice_missing_since:
-            del self._subdevice_missing_since[sn]
+        if sn in self._subdevice_last_seen:
+            del self._subdevice_last_seen[sn]
 
         # 清除已注册的传感器引用
         keys_to_remove = self._entity_keys_for_subdevice(sn)
@@ -1802,6 +1815,9 @@ class JackeryDataCoordinator:
             try:
                 if time.time() - self._last_update_time > OFFLINE_TIMEOUT:
                     self._mark_all_offline()
+                else:
+                    # Host is online, but check sub-device independent timeouts
+                    self._check_for_new_plugs(self._data_cache)
 
                 # 启发式：配置后持续轮询却长时间从未收到任何响应 → 极可能 Token 无效
                 if (
@@ -2217,7 +2233,6 @@ class JackerySubDeviceSensor(SensorEntity):
                 native_val = float(val)
                 scale = self._sensor_config.get("scale", 1)
                 self._attr_native_value = native_val * scale
-                self._attr_available = True
                 self.async_write_ha_state()
             except (TypeError, ValueError):
                 pass
