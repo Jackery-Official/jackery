@@ -698,22 +698,22 @@ SENSORS = {
     },
 
     # EPS / AC Socket (App logic: use input if swEpsInPw > 0, else output)
-    "eps_output_power": {
-        "json_key": "calc_ac_socket_power",
-        "name": "AC Socket Power",
-        "unit": UnitOfPower.WATT,
-        "icon": "mdi:power-plug",
-        "device_class": SensorDeviceClass.POWER,
-        "state_class": SensorStateClass.MEASUREMENT,
-    },
-    "ac_socket_power": {
-        "json_key": "calc_ac_socket_power",
-        "name": "AC Socket Power (Calc)",
-        "unit": UnitOfPower.WATT,
-        "icon": "mdi:power-plug",
-        "device_class": SensorDeviceClass.POWER,
-        "state_class": SensorStateClass.MEASUREMENT,
-    },
+    # "eps_output_power": {
+    #     "json_key": "calc_ac_socket_power",
+    #     "name": "AC Socket Power",
+    #     "unit": UnitOfPower.WATT,
+    #     "icon": "mdi:power-plug",
+    #     "device_class": SensorDeviceClass.POWER,
+    #     "state_class": SensorStateClass.MEASUREMENT,
+    # },
+    # "ac_socket_power": {
+    #     "json_key": "calc_ac_socket_power",
+    #     "name": "AC Socket Power (Calc)",
+    #     "unit": UnitOfPower.WATT,
+    #     "icon": "mdi:power-plug",
+    #     "device_class": SensorDeviceClass.POWER,
+    #     "state_class": SensorStateClass.MEASUREMENT,
+    # },
     "eps_output_energy": {
         "json_key": "outEpsEgy",
         "name": "EPS Output Energy",
