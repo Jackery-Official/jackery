@@ -1500,7 +1500,7 @@ class JackeryDataCoordinator:
             "body": {
                 "deviceSn": plug_sn,
                 "devType": dev_type,
-                "switchSta": 1 if is_on else 0,
+                "sysSwitch": 1 if is_on else 0,
             },
         }
         if self._token:
@@ -1514,7 +1514,7 @@ class JackeryDataCoordinator:
             False
         )
         _LOGGER.info(
-            "Sent type=103 sub-device control to %s: deviceSn=%s devType=%s switchSta=%s",
+            "Sent type=103 sub-device control to %s: deviceSn=%s devType=%s sysSwitch=%s",
             action_topic,
             plug_sn,
             dev_type,
@@ -1532,6 +1532,7 @@ class JackeryDataCoordinator:
                 continue
             for item in items:
                 if isinstance(item, dict) and _subdevice_sn(item) == plug_sn:
+                    item["sysSwitch"] = switch_val
                     item["switchSta"] = switch_val
                     return
 
