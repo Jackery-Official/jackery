@@ -45,6 +45,17 @@ ONGRID_STATUS_MAP = {0: "off_grid", 1: "on_grid"}        # ongridStat: 1=On-grid
 CT_STATUS_MAP = {0: "offline", 1: "online"}              # ctStat: 1=Online, 0=Offline
 GRID_METER_LINK_MAP = {0: "abnormal", 1: "normal"}       # gridSate: 1=Normal, 0=Abnormal
 
+# CT/Meter subType mapping
+CT_SUBTYPE_MAP = {
+    1: "Shelly Single Phase",
+    2: "Shelly Three Phase",
+    3: "Shelly 63A",
+    4: "Eastron Single Phase (4002)",
+    5: "Eastron Three Phase (4003)",
+    6: "Jackery Wireless Smart Meter (US L1/L2 4007)",
+    7: "Jackery Smart Meter 3P (UK 4008)",
+}
+
 # funcEnable bits (bit -> name), 1=Enabled, 0=Disabled
 FUNC_ENABLE_BITS = {
     0: "aerosol",            # bit0 aerosol
@@ -120,26 +131,26 @@ def _pick_best_power_net(candidates: list[float]) -> float:
 
 def _extract_ct_grid_power(ct_data: dict[str, Any]) -> tuple[float, float, bool]:
     """Extract buy/sell power from CT sub-device; returns (grid_buy, grid_sell, has_power_fields)."""
-    t_phase_pw = ct_data.get("TphasePw") or ct_data.get("tPhasePw")
-    tn_phase_pw = ct_data.get("TnphasePw") or ct_data.get("tnPhasePw")
-    has_power_fields = t_phase_pw is not None or tn_phase_pw is not None
-
-    if t_phase_pw is None:
-        a_pw = ct_data.get("AphasePw") or ct_data.get("aPhasePw")
-        b_pw = ct_data.get("BphasePw") or ct_data.get("bPhasePw")
-        c_pw = ct_data.get("CphasePw") or ct_data.get("cPhasePw")
+    # Try all possible casing and variants for total fields
+    t_phase_pw = ct_data.get("TphasePw") if ct_data.get("TphasePw") is not None else ct_data.get("tPhasePw")
+    tn_phase_pw = ct_data.get("TnphasePw") if ct_data.get("TnphasePw") is not None else ct_data.get("tnPhasePw")
+    
+    # If total fields are missing or zero, try to sum up phase fields
+    if not t_phase_pw or t_phase_pw == 0:
+        a_pw = ct_data.get("AphasePw") if ct_data.get("AphasePw") is not None else ct_data.get("aPhasePw")
+        b_pw = ct_data.get("BphasePw") if ct_data.get("BphasePw") is not None else ct_data.get("bPhasePw")
+        c_pw = ct_data.get("CphasePw") if ct_data.get("CphasePw") is not None else ct_data.get("cPhasePw")
         if any(v is not None for v in (a_pw, b_pw, c_pw)):
             t_phase_pw = _safe_float(a_pw) + _safe_float(b_pw) + _safe_float(c_pw)
-            has_power_fields = True
 
-    if tn_phase_pw is None:
-        an_pw = ct_data.get("AnphasePw") or ct_data.get("anPhasePw")
-        bn_pw = ct_data.get("BnphasePw") or ct_data.get("bnPhasePw")
-        cn_pw = ct_data.get("CnphasePw") or ct_data.get("cnPhasePw")
+    if not tn_phase_pw or tn_phase_pw == 0:
+        an_pw = ct_data.get("AnphasePw") if ct_data.get("AnphasePw") is not None else ct_data.get("anPhasePw")
+        bn_pw = ct_data.get("BnphasePw") if ct_data.get("BnphasePw") is not None else ct_data.get("bnPhasePw")
+        cn_pw = ct_data.get("CnphasePw") if ct_data.get("CnphasePw") is not None else ct_data.get("cnPhasePw")
         if any(v is not None for v in (an_pw, bn_pw, cn_pw)):
             tn_phase_pw = _safe_float(an_pw) + _safe_float(bn_pw) + _safe_float(cn_pw)
-            has_power_fields = True
 
+    has_power_fields = t_phase_pw is not None or tn_phase_pw is not None
     if not has_power_fields:
         return 0.0, 0.0, False
 
@@ -542,7 +553,7 @@ SENSORS = {
         "json_key": "batNum",
         "name": "Battery Count",
         "unit": None,
-        "icon": "mdi:battery-multiple",
+        "icon": "mdi:battery-plus-variant",
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
     },
@@ -943,6 +954,30 @@ SUBDEVICE_SENSORS = {
         "power": {
             "key": "phasePw", # Resolve by subType to A/B/C/Total
             "name": "Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT,
+            "icon": "mdi:current-ac",
+        },
+        "power_a": {
+            "key": "AphasePw",
+            "name": "A Phase Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT,
+            "icon": "mdi:current-ac",
+        },
+        "power_b": {
+            "key": "BphasePw",
+            "name": "B Phase Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT,
+            "icon": "mdi:current-ac",
+        },
+        "power_c": {
+            "key": "CphasePw",
+            "name": "C Phase Power",
             "unit": UnitOfPower.WATT,
             "device_class": SensorDeviceClass.POWER,
             "state_class": SensorStateClass.MEASUREMENT,
@@ -2031,8 +2066,11 @@ class JackerySensor(SensorEntity):
                 self._attr_native_value = float(value) * 0.1
             except (TypeError, ValueError):
                 pass
-        elif self._sensor_id == "battery_soc":
-             self._attr_native_value = value
+        elif self._sensor_id == "battery_soc" or self._sensor_id == "battery_count":
+             try:
+                 self._attr_native_value = int(value)
+             except (TypeError, ValueError):
+                 self._attr_native_value = value
         elif self._sensor_id.startswith("solar_power_pv") and isinstance(value, dict):
             # Handle dictionary for PV if it occurs
             if "pvPw" in value:
@@ -2150,83 +2188,52 @@ class JackerySubDeviceSensor(SensorEntity):
         self._raw_data = dict(my_plug)
         
         target_key = self._sensor_config.get("key")
-        val = my_plug.get(target_key)
+        val = None
 
-        # CT phase mapping by subType (1=A, 2=B, 3=C, 4=Total)
-        if self._sensor_group == "ct" and target_key in {"phasePw", "phaseEgy"}:
-            sub_type = my_plug.get("subType")
+        # CT specific parsing logic
+        if self._sensor_group == "ct":
             if target_key == "phasePw":
-                if sub_type == 1:
-                    val = my_plug.get("AphasePw") or my_plug.get("aPhasePw")
-                elif sub_type == 2:
-                    val = my_plug.get("BphasePw") or my_plug.get("bPhasePw")
-                elif sub_type == 3:
-                    # C Phase (Single phase: A+B)
-                    val = my_plug.get("CphasePw") or my_plug.get("cPhasePw")
-                    if not val:
-                        a_pw = my_plug.get("AphasePw") or my_plug.get("aPhasePw") or 0
-                        b_pw = my_plug.get("BphasePw") or my_plug.get("bPhasePw") or 0
-                        if any(v is not None for v in [a_pw, b_pw]):
-                            val = float(a_pw) + float(b_pw)
-                else:
-                    val = my_plug.get("TphasePw") or my_plug.get("tPhasePw")
-            else:
-                if sub_type == 1:
-                    val = my_plug.get("AphaseEgy") or my_plug.get("aPhaseEgy")
-                elif sub_type == 2:
-                    val = my_plug.get("BphaseEgy") or my_plug.get("bPhaseEgy")
-                elif sub_type == 3:
-                    # C Phase (Single phase: A+B)
-                    val = my_plug.get("CphaseEgy") or my_plug.get("cPhaseEgy")
-                    if not val:
-                        a_egy = my_plug.get("AphaseEgy") or my_plug.get("aPhaseEgy") or 0
-                        b_egy = my_plug.get("BphaseEgy") or my_plug.get("bPhaseEgy") or 0
-                        if any(v is not None for v in [a_egy, b_egy]):
-                            val = float(a_egy) + float(b_egy)
-                else:
-                    val = my_plug.get("TphaseEgy") or my_plug.get("tPhaseEgy")
-                # If subtype energy is zero/None but total is non-zero, fall back to the single non-zero phase
-                if not val:
-                    total_egy = my_plug.get("TphaseEgy") or my_plug.get("tPhaseEgy")
-                    if total_egy:
-                        a_egy = my_plug.get("AphaseEgy") or my_plug.get("aPhaseEgy") or 0
-                        b_egy = my_plug.get("BphaseEgy") or my_plug.get("bPhaseEgy") or 0
-                        c_egy = my_plug.get("CphaseEgy") or my_plug.get("cPhaseEgy") or 0
-                        non_zero = [v for v in [a_egy, b_egy, c_egy] if v]
-                        if len(non_zero) == 1:
-                            val = non_zero[0]
-        
-        # Fallback logic for specific keys if needed (like Power)
-        if val is None:
-             if target_key == "outPw":
-                 val = my_plug.get("power")
-             elif target_key == "TphasePw":
-                 # Accept alternate key casing and sum phase powers if needed
-                 val = my_plug.get("tPhasePw")
-                 if val is None:
-                     a_pw = my_plug.get("AphasePw") or my_plug.get("aPhasePw") or 0
-                     b_pw = my_plug.get("BphasePw") or my_plug.get("bPhasePw") or 0
-                     c_pw = my_plug.get("CphasePw") or my_plug.get("cPhasePw") or 0
-                     if any(v is not None for v in [a_pw, b_pw, c_pw]):
-                         val = float(a_pw) + float(b_pw) + float(c_pw)
-             elif target_key == "TphaseEgy":
-                 # Total forward active energy
-                 val = my_plug.get("tPhaseEgy")
-                 if val is None:
-                     a_egy = my_plug.get("AphaseEgy") or my_plug.get("aPhaseEgy") or 0
-                     b_egy = my_plug.get("BphaseEgy") or my_plug.get("bPhaseEgy") or 0
-                     c_egy = my_plug.get("CphaseEgy") or my_plug.get("cPhaseEgy") or 0
-                     if any(v is not None for v in [a_egy, b_egy, c_egy]):
-                         val = float(a_egy) + float(b_egy) + float(c_egy)
-             elif target_key == "TnphaseEgy":
-                 # Total reverse active energy
-                 val = my_plug.get("tnPhaseEgy")
-                 if val is None:
-                     an_egy = my_plug.get("AnphaseEgy") or my_plug.get("anPhaseEgy") or 0
-                     bn_egy = my_plug.get("BnphaseEgy") or my_plug.get("bnPhaseEgy") or 0
-                     cn_egy = my_plug.get("CnphaseEgy") or my_plug.get("cnPhaseEgy") or 0
-                     if any(v is not None for v in [an_egy, bn_egy, cn_egy]):
-                         val = float(an_egy) + float(bn_egy) + float(cn_egy)
+                # For CT Power, we want the Net Power (Buy - Sell)
+                buy, sell, _ = _extract_ct_grid_power(my_plug)
+                val = buy - sell
+            elif target_key == "AphasePw":
+                a_buy = my_plug.get("AphasePw") if my_plug.get("AphasePw") is not None else my_plug.get("aPhasePw")
+                a_sell = my_plug.get("AnphasePw") if my_plug.get("AnphasePw") is not None else my_plug.get("anPhasePw")
+                if a_buy is not None or a_sell is not None:
+                    val = _safe_float(a_buy) - _safe_float(a_sell)
+            elif target_key == "BphasePw":
+                b_buy = my_plug.get("BphasePw") if my_plug.get("BphasePw") is not None else my_plug.get("bPhasePw")
+                b_sell = my_plug.get("BnphasePw") if my_plug.get("BnphasePw") is not None else my_plug.get("bnPhasePw")
+                if b_buy is not None or b_sell is not None:
+                    val = _safe_float(b_buy) - _safe_float(b_sell)
+            elif target_key == "CphasePw":
+                c_buy = my_plug.get("CphasePw") if my_plug.get("CphasePw") is not None else my_plug.get("cPhasePw")
+                c_sell = my_plug.get("CnphasePw") if my_plug.get("CnphasePw") is not None else my_plug.get("cnPhasePw")
+                if c_buy is not None or c_sell is not None:
+                    val = _safe_float(c_buy) - _safe_float(c_sell)
+            elif target_key == "phaseEgy":
+                # For Forward Energy (Import)
+                val = my_plug.get("TphaseEgy") if my_plug.get("TphaseEgy") is not None else my_plug.get("tPhaseEgy")
+                if not val or val == 0:
+                    a = my_plug.get("AphaseEgy") if my_plug.get("AphaseEgy") is not None else my_plug.get("aPhaseEgy")
+                    b = my_plug.get("BphaseEgy") if my_plug.get("BphaseEgy") is not None else my_plug.get("bPhaseEgy")
+                    c = my_plug.get("CphaseEgy") if my_plug.get("CphaseEgy") is not None else my_plug.get("cPhaseEgy")
+                    if any(v is not None for v in (a, b, c)):
+                        val = _safe_float(a) + _safe_float(b) + _safe_float(c)
+            elif target_key == "TnphaseEgy":
+                # For Reverse Energy (Export)
+                val = my_plug.get("TnphaseEgy") if my_plug.get("TnphaseEgy") is not None else my_plug.get("tnPhaseEgy")
+                if not val or val == 0:
+                    an = my_plug.get("AnphaseEgy") if my_plug.get("AnphaseEgy") is not None else my_plug.get("anPhaseEgy")
+                    bn = my_plug.get("BnphaseEgy") if my_plug.get("BnphaseEgy") is not None else my_plug.get("bnPhaseEgy")
+                    cn = my_plug.get("CnphaseEgy") if my_plug.get("CnphaseEgy") is not None else my_plug.get("cnPhaseEgy")
+                    if any(v is not None for v in (an, bn, cn)):
+                        val = _safe_float(an) + _safe_float(bn) + _safe_float(cn)
+        else:
+            # Smart Plug logic
+            val = my_plug.get(target_key)
+            if val is None and target_key == "outPw":
+                val = my_plug.get("power")
         
         if val is not None:
             try:
@@ -2242,11 +2249,13 @@ class JackerySubDeviceSensor(SensorEntity):
         raw = getattr(self, "_raw_data", None) or {}
         mode = plug_comm_mode(raw)
         mqtt_ok, _ = plug_mqtt_control_allowed(raw)
+        sub_type = raw.get("subType")
         return {
             "plug_sn": self._plug_sn,
             "dev_type": self._dev_type,
             "sensor_type": self._sensor_key,
-            "subType": raw.get("subType"),
+            "subType": sub_type,
+            "subType_label": CT_SUBTYPE_MAP.get(sub_type) if self._sensor_group == "ct" else None,
             # Normalized CT/plug fields (if present)
             "sn": raw.get("sn") or raw.get("deviceSn"),
             "name": raw.get("name") or raw.get("scanName"),
@@ -2260,10 +2269,14 @@ class JackerySubDeviceSensor(SensorEntity):
             "switchSta": raw.get("switchSta") if raw.get("switchSta") is not None else raw.get("sysSwitch"),
             "totalEgy": raw.get("totalEgy"),
             # CT Fields
-            "TphasePw": raw.get("TphasePw"),
-            "TphaseEgy": raw.get("TphaseEgy"),
-            "TnphaseEgy": raw.get("TnphaseEgy"),
-            "tPhasePw": raw.get("tPhasePw"),
-            "tPhaseEgy": raw.get("tPhaseEgy"),
-            "tnPhaseEgy": raw.get("tnPhaseEgy"),
+            "TphasePw": raw.get("TphasePw") or raw.get("tPhasePw"),
+            "TnphasePw": raw.get("TnphasePw") or raw.get("tnPhasePw"),
+            "AphasePw": raw.get("AphasePw") or raw.get("aPhasePw"),
+            "BphasePw": raw.get("BphasePw") or raw.get("bPhasePw"),
+            "CphasePw": raw.get("CphasePw") or raw.get("cPhasePw"),
+            "AnphasePw": raw.get("AnphasePw") or raw.get("anPhasePw"),
+            "BnphasePw": raw.get("BnphasePw") or raw.get("bnPhasePw"),
+            "CnphasePw": raw.get("CnphasePw") or raw.get("cnPhasePw"),
+            "TphaseEgy": raw.get("TphaseEgy") or raw.get("tPhaseEgy"),
+            "TnphaseEgy": raw.get("TnphaseEgy") or raw.get("tnPhaseEgy"),
         }
