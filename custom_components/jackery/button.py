@@ -54,15 +54,14 @@ class JackeryRebootButton(ButtonEntity):
             f"jackery_{device_sn}_main_reboot" if device_sn else "jackery_main_reboot"
         )
         self._attr_has_entity_name = True
-        device_info = {
-            "identifiers": {(DOMAIN, config_entry_id)},
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, device_sn), (DOMAIN, config_entry_id)} if device_sn else {(DOMAIN, config_entry_id)},
             "name": f"Jackery {device_sn}" if device_sn else "Jackery",
             "manufacturer": "Jackery",
             "model": "Energy Monitor",
         }
         if device_sn:
-            device_info["serial_number"] = device_sn
-        self._attr_device_info = device_info
+            self._attr_device_info["serial_number"] = device_sn
 
     async def async_press(self) -> None:
         """Send reboot command (reboot=1)."""

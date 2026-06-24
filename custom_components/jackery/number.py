@@ -74,15 +74,14 @@ class JackeryMainNumber(NumberEntity):
         self._attr_native_min_value = min_value
         self._attr_native_max_value = max_value
         self._attr_native_step = step
-        device_info = {
-            "identifiers": {(DOMAIN, config_entry_id)},
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, device_sn), (DOMAIN, config_entry_id)} if device_sn else {(DOMAIN, config_entry_id)},
             "name": f"Jackery {device_sn}" if device_sn else "Jackery",
             "manufacturer": "Jackery",
             "model": "Energy Monitor",
         }
         if device_sn:
-            device_info["serial_number"] = device_sn
-        self._attr_device_info = device_info
+            self._attr_device_info["serial_number"] = device_sn
 
     @property
     def should_poll(self) -> bool:

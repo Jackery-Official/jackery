@@ -63,15 +63,14 @@ class JackeryAutoStandbySelect(SelectEntity):
             f"jackery_{device_sn}_main_{self._key}" if device_sn else f"jackery_main_{self._key}"
         )
         self._attr_has_entity_name = True
-        device_info = {
-            "identifiers": {(DOMAIN, config_entry_id)},
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, device_sn), (DOMAIN, config_entry_id)} if device_sn else {(DOMAIN, config_entry_id)},
             "name": f"Jackery {device_sn}" if device_sn else "Jackery",
             "manufacturer": "Jackery",
             "model": "Energy Monitor",
         }
         if device_sn:
-            device_info["serial_number"] = device_sn
-        self._attr_device_info = device_info
+            self._attr_device_info["serial_number"] = device_sn
 
     @property
     def should_poll(self) -> bool:

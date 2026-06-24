@@ -93,15 +93,15 @@ class JackeryPlugSwitch(SwitchEntity):
         self._coordinator = coordinator
         self._raw_data = {}
 
-        device_sn = getattr(coordinator, "_device_sn", "")
+        host_sn = getattr(coordinator, "_device_sn", "")
         self._attr_name = "Switch"
-        self._attr_unique_id = f"jackery_{device_sn}_plug_{plug_sn}_switch"
+        self._attr_unique_id = f"jackery_{host_sn}_plug_{plug_sn}_switch"
         self._attr_has_entity_name = True
 
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, f"sub_{device_sn}_{plug_sn}")},
-            "via_device": (DOMAIN, config_entry_id),
-            "name": f"Jackery Plug {plug_sn}",
+            "identifiers": {(DOMAIN, f"sub_{host_sn}_{plug_sn}")},
+            "via_device": (DOMAIN, host_sn) if host_sn else (DOMAIN, config_entry_id),
+            "name": f"Jackery {host_sn} Plug {plug_sn}" if host_sn else f"Jackery Plug {plug_sn}",
             "manufacturer": "Jackery",
             "model": f"Sub-device Type {dev_type}",
         }
@@ -233,15 +233,14 @@ class JackeryMainSwitch(SwitchEntity):
         device_sn = getattr(coordinator, "_device_sn", None)
         self._attr_unique_id = f"jackery_{device_sn}_main_{key}" if device_sn else f"jackery_main_{key}"
         self._attr_has_entity_name = True
-        device_info = {
-            "identifiers": {(DOMAIN, config_entry_id)},
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, device_sn), (DOMAIN, config_entry_id)} if device_sn else {(DOMAIN, config_entry_id)},
             "name": f"Jackery {device_sn}" if device_sn else "Jackery",
             "manufacturer": "Jackery",
             "model": "Energy Monitor",
         }
         if device_sn:
-            device_info["serial_number"] = device_sn
-        self._attr_device_info = device_info
+            self._attr_device_info["serial_number"] = device_sn
 
     @property
     def should_poll(self) -> bool:

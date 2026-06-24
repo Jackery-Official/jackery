@@ -1589,11 +1589,16 @@ class JackeryDataCoordinator:
 
     def _update_device_registry(self) -> None:
         """Dynamically update HA device model and firmware version based on deviceType/softver."""
-        entry_id = getattr(self, "config_entry_id", None)
-        if not entry_id:
+        if not self._device_sn:
             return
         dev_reg = dr.async_get(self.hass)
-        device = dev_reg.async_get_device(identifiers={(DOMAIN, entry_id)})
+        device = dev_reg.async_get_device(identifiers={(DOMAIN, self._device_sn)})
+        if device is None:
+            # Fallback to config_entry_id if not found by SN yet (e.g. during migration)
+            entry_id = getattr(self, "config_entry_id", None)
+            if entry_id:
+                device = dev_reg.async_get_device(identifiers={(DOMAIN, entry_id)})
+        
         if device is None:
             return
 
@@ -2018,15 +2023,14 @@ class JackerySensor(SensorEntity):
         self._attr_unique_id = f"jackery_{device_sn}_{sensor_id}" if device_sn else f"jackery_{sensor_id}"
         self._attr_has_entity_name = True
 
-        device_info = {
-            "identifiers": {(DOMAIN, config_entry_id)},
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, device_sn), (DOMAIN, config_entry_id)} if device_sn else {(DOMAIN, config_entry_id)},
             "name": f"Jackery {device_sn}" if device_sn else "Jackery",
             "manufacturer": "Jackery",
             "model": "Energy Monitor",
         }
         if device_sn:
-            device_info["serial_number"] = device_sn
-        self._attr_device_info = device_info
+            self._attr_device_info["serial_number"] = device_sn
 
     @property
     def should_poll(self) -> bool:
@@ -2146,14 +2150,14 @@ class JackerySubDeviceSensor(SensorEntity):
         
         # Unique ID: jackery_{device_sn}_ct_{sn}_power, jackery_{device_sn}_plug_{sn}_energy, etc.
         safe_key = self._sensor_key.replace("_", "") # e.g. energy_import -> energyimport
-        device_sn = getattr(coordinator, "_device_sn", "")
-        self._attr_unique_id = f"jackery_{device_sn}_{device_name.lower()}_{plug_sn}_{safe_key}"
+        host_sn = getattr(coordinator, "_device_sn", "")
+        self._attr_unique_id = f"jackery_{host_sn}_{device_name.lower()}_{plug_sn}_{safe_key}"
         self._attr_has_entity_name = True
 
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, f"sub_{device_sn}_{plug_sn}")}, 
-            "via_device": (DOMAIN, config_entry_id),
-            "name": f"Jackery {device_name} {plug_sn}",
+            "identifiers": {(DOMAIN, f"sub_{host_sn}_{plug_sn}")}, 
+            "via_device": (DOMAIN, host_sn) if host_sn else (DOMAIN, config_entry_id),
+            "name": f"Jackery {host_sn} {device_name} {plug_sn}" if host_sn else f"Jackery {device_name} {plug_sn}",
             "manufacturer": "Jackery",
             "model": f"Sub-device Type {dev_type}",
         }

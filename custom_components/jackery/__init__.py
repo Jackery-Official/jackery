@@ -28,18 +28,30 @@ async def _migrate_unique_ids(hass: HomeAssistant, entry: ConfigEntry) -> None:
     @callback
     def _update(registry_entry: er.RegistryEntry) -> dict | None:
         old = registry_entry.unique_id
-        # Skip if already migrated
-        if old.startswith(new_prefix):
+        
+        # 1. Skip if already migrated (contains the current device_sn)
+        if f"_{device_sn}_" in old or old.startswith(new_prefix):
             return None
 
+        # 2. Handle legacy formats (without device_sn)
+        # Old format: jackery_main_{key} -> jackery_{sn}_main_{key}
         if old.startswith("jackery_main_"):
             return {"new_unique_id": old.replace("jackery_main_", f"{new_prefix}main_", 1)}
+        
+        # Old format: jackery_plug_{plug_sn}_{key} -> jackery_{sn}_plug_{plug_sn}_{key}
         if old.startswith("jackery_plug_"):
             return {"new_unique_id": old.replace("jackery_plug_", f"{new_prefix}plug_", 1)}
+        
+        # Old format: jackery_ct_{ct_sn}_{key} -> jackery_{sn}_ct_{ct_sn}_{key}
         if old.startswith("jackery_ct_"):
             return {"new_unique_id": old.replace("jackery_ct_", f"{new_prefix}ct_", 1)}
+        
+        # Old format: jackery_{sensor_id} -> jackery_{sn}_{sensor_id}
         if old.startswith("jackery_"):
+            # Ensure we don't double-prefix if it somehow already has a SN but not the current one
+            # (though the first check should have caught most cases)
             return {"new_unique_id": old.replace("jackery_", new_prefix, 1)}
+        
         return None
 
     await er.async_migrate_entries(hass, entry.entry_id, _update)
