@@ -16,9 +16,28 @@ _LOGGER = logging.getLogger(__name__)
 
 
 NUMBERS = {
-    "socChgLimit": {"name": "SOC Charge Limit", "min": 0, "max": 100, "step": 1},
-    "socDischgLimit": {"name": "SOC Discharge Limit", "min": 0, "max": 100, "step": 1},
-    "maxOutPw": {"name": "Max Output Power (OnGrid)", "min": 0, "max": 10000, "step": 10},
+    "socChgLimit": {
+        "name": "SOC Charge Limit",
+        "min": 50,
+        "max": 100,
+        "step": 1,
+        "min_key": "minSocChg",
+        "max_key": "maxSocChg",
+    },
+    "socDischgLimit": {
+        "name": "SOC Discharge Limit",
+        "min": 5,
+        "max": 49,
+        "step": 1,
+        "min_key": "minSocDischg",
+        "max_key": "maxSocDischg",
+    },
+    "maxOutPw": {
+        "name": "Max Output Power (OnGrid)",
+        "min": 0,
+        "max": 2500,
+        "step": 10,
+    },
 }
 
 
@@ -96,17 +115,44 @@ class JackeryMainNumber(NumberEntity):
         await super().async_will_remove_from_hass()
 
     def _update_from_coordinator(self, data: dict) -> None:
-        if self._key not in data:
-            return
-        val = data.get(self._key)
-        if val is None:
-            return
-        try:
-            self._attr_native_value = float(val)
-            self._attr_available = True
+        """Update the entity when new data is received."""
+        changed = False
+        cfg = NUMBERS.get(self._key, {})
+
+        # 1. Update dynamic limits (Min/Max)
+        min_key = cfg.get("min_key")
+        if min_key and min_key in data:
+            new_min = float(data[min_key])
+            if new_min != self._attr_native_min_value:
+                self._attr_native_min_value = new_min
+                changed = True
+
+        max_key = cfg.get("max_key")
+        if max_key and max_key in data:
+            new_max = float(data[max_key])
+            if new_max != self._attr_native_max_value:
+                self._attr_native_max_value = new_max
+                changed = True
+
+        # 2. Update current value
+        if self._key in data:
+            val = data.get(self._key)
+            if val is not None:
+                try:
+                    new_val = float(val)
+                    if new_val != self._attr_native_value:
+                        self._attr_native_value = new_val
+                        self._attr_available = True
+                        changed = True
+                except (TypeError, ValueError):
+                    pass
+        
+        # 3. Force UI update if anything changed
+        if changed:
             self.async_write_ha_state()
-        except (TypeError, ValueError):
-            pass
 
     async def async_set_native_value(self, value: float) -> None:
+        """Update the current value."""
+        self._attr_native_value = value
+        self.async_write_ha_state()
         await self._coordinator.async_control_main_device({self._key: int(value)})
