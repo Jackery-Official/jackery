@@ -140,7 +140,7 @@ class JackeryMainNumber(NumberEntity):
             if val is not None:
                 try:
                     new_val = float(val)
-                    if new_val != self._attr_native_value:
+                    if not self._attr_available or new_val != self._attr_native_value:
                         self._attr_native_value = new_val
                         self._attr_available = True
                         changed = True

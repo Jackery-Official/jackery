@@ -1848,8 +1848,13 @@ class JackeryDataCoordinator:
             self.unregister_sensor(k)
 
     async def _periodic_data_request(self) -> None:
-        """Periodically send 'type: 25' and 'type: 100' commands."""
+        """Periodically send polling commands."""
         _LOGGER.info(f"Starting periodic data polling for {self._device_sn} via {self._mqtt_host}...")
+        
+        # Initial poll: Send all request types immediately once to populate data
+        if self._device_sn:
+            await self._send_all_poll_requests()
+        
         await asyncio.sleep(2)
 
         while True:
@@ -1873,82 +1878,7 @@ class JackeryDataCoordinator:
                     await asyncio.sleep(5)
                     continue
 
-                # Construct Action Topic
-                action_topic = f"{self._topic_root}/device/{self._device_sn}/action"
-                ts = int(time.time())
-                
-                # 1. Poll Device Status (Type 25)
-                try:
-                    payload_25 = {
-                        "type": 25,
-                        "eventId": 0,
-                        "messageId": random.randint(1000, 9999),
-                        "ts": ts,
-                        "token": self._token,
-                        "body": None
-                    }
-
-                    await ha_mqtt.async_publish(
-                        self.hass,
-                        action_topic,
-                        json.dumps(payload_25),
-                        0,
-                        False
-                    )
-                except Exception as e:
-                    _LOGGER.warning(f"Error polling device status (Type 25): {e}")
-
-                # 1b. Poll System Full Data (Type 105) - Grid-tied system full attributes (device responds with type=106)
-                try:
-                    payload_105 = {
-                        "type": 105,
-                        "eventId": 0,
-                        "messageId": random.randint(1000, 9999),
-                        "ts": ts,
-                        "token": self._token,
-                        "body": None,
-                    }
-
-                    await ha_mqtt.async_publish(
-                        self.hass,
-                        action_topic,
-                        json.dumps(payload_105),
-                        0,
-                        False,
-                    )
-                except Exception as e:
-                    _LOGGER.warning(f"Error polling system full data (Type 105): {e}")
-
-                # 2. Poll Sub-devices (Type 100) - devType=2 CT family; devType=6 Smart Plug
-                for poll_dev_type in (2, 6):
-                    try:
-                        payload_100 = {
-                            "type": 100,
-                            "eventId": 0,
-                            "messageId": random.randint(1000, 9999),
-                            "ts": ts,
-                            "token": self._token,
-                            "body": {
-                                "devType": poll_dev_type,
-                            },
-                        }
-                        await ha_mqtt.async_publish(
-                            self.hass,
-                            action_topic,
-                            json.dumps(payload_100),
-                            0,
-                            False,
-                        )
-                    except Exception as e:
-                        _LOGGER.warning(
-                            "Error polling sub-devices (Type 100 devType=%s): %s",
-                            poll_dev_type,
-                            e,
-                        )
-
-                _LOGGER.debug(
-                    "Sent poll requests (25 & 105 & 100 [2,6]) to %s", action_topic
-                )
+                await self._send_all_poll_requests()
 
                 await asyncio.sleep(REQUEST_INTERVAL)
 
@@ -1957,6 +1887,73 @@ class JackeryDataCoordinator:
             except Exception as e:
                 _LOGGER.error(f"Error in polling task: {e}")
                 await asyncio.sleep(REQUEST_INTERVAL)
+
+    async def _send_all_poll_requests(self) -> None:
+        """Send all types of data requests to the device."""
+        if not self._device_sn:
+            return
+
+        action_topic = f"{self._topic_root}/device/{self._device_sn}/action"
+        ts = int(time.time())
+
+        # 1. Poll Device Status (Type 25)
+        try:
+            payload_25 = {
+                "type": 25,
+                "eventId": 0,
+                "messageId": random.randint(1000, 9999),
+                "ts": ts,
+                "token": self._token,
+                "body": None
+            }
+            await ha_mqtt.async_publish(self.hass, action_topic, json.dumps(payload_25), 0, False)
+        except Exception as e:
+            _LOGGER.warning(f"Error polling device status (Type 25): {e}")
+
+        # 1b. Poll System Full Data (Type 105) - Grid-tied system full attributes
+        try:
+            payload_105 = {
+                "type": 105,
+                "eventId": 0,
+                "messageId": random.randint(1000, 9999),
+                "ts": ts,
+                "token": self._token,
+                "body": None,
+            }
+            await ha_mqtt.async_publish(self.hass, action_topic, json.dumps(payload_105), 0, False)
+        except Exception as e:
+            _LOGGER.warning(f"Error polling system full data (Type 105): {e}")
+
+        # 1c. Read All Settings (Type 2) - Standard Jackery command for all properties
+        try:
+            payload_2 = {
+                "type": 2,
+                "eventId": 0,
+                "messageId": random.randint(1000, 9999),
+                "ts": ts,
+                "token": self._token,
+                "body": None,
+            }
+            await ha_mqtt.async_publish(self.hass, action_topic, json.dumps(payload_2), 0, False)
+        except Exception as e:
+            _LOGGER.debug(f"Error sending Read All Settings (Type 2): {e}")
+
+        # 2. Poll Sub-devices (Type 100) - devType=2 CT family; devType=6 Smart Plug
+        for poll_dev_type in (2, 6):
+            try:
+                payload_100 = {
+                    "type": 100,
+                    "eventId": 0,
+                    "messageId": random.randint(1000, 9999),
+                    "ts": ts,
+                    "token": self._token,
+                    "body": {"devType": poll_dev_type},
+                }
+                await ha_mqtt.async_publish(self.hass, action_topic, json.dumps(payload_100), 0, False)
+            except Exception as e:
+                _LOGGER.warning(f"Error polling sub-devices (Type 100 devType={poll_dev_type}): {e}")
+
+        _LOGGER.debug("Sent all poll requests (25, 105, 2, 100[2,6]) to %s", action_topic)
 
 
 async def async_setup_entry(
