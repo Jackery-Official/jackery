@@ -52,7 +52,7 @@ async def async_setup_entry(
             ),
             JackeryMainSwitch(
                 key="swEps",
-                name="EPS Switch",
+                name="AC Socket Switch",
                 coordinator=coordinator,
                 config_entry_id=config_entry.entry_id,
             ),

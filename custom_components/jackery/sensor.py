@@ -508,14 +508,6 @@ SENSORS = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
     },
-    "func_enable": {
-        "json_key": "funcEnable",
-        "name": "Function Enable",
-        "unit": None,
-        "icon": "mdi:tune-variant",
-        "device_class": None,
-        "state_class": None,
-    },
     # Battery related
     "battery_soc": {
         "json_key": "batSoc",
@@ -667,7 +659,7 @@ SENSORS = {
     # Grid related
     "grid_import_power": { # Grid -> System (gridInPw/inOngridPw)
         "json_key": "gridInPw",
-        "name": "Grid Import Power",
+        "name": "Grid Port Input Power",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:transmission-tower-export",
         "device_class": SensorDeviceClass.POWER,
@@ -675,7 +667,7 @@ SENSORS = {
     },
     "grid_import_energy": {
         "json_key": "inOngridEgy",
-        "name": "Grid Import Energy",
+        "name": "Grid Port Input Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:transmission-tower-export",
         "device_class": SensorDeviceClass.ENERGY,
@@ -684,7 +676,7 @@ SENSORS = {
     },
     "grid_export_power": { # System -> Grid (gridOutPw/outOngridPw)
         "json_key": "gridOutPw",
-        "name": "Grid Export Power",
+        "name": "Grid Port Output Power",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:transmission-tower-import",
         "device_class": SensorDeviceClass.POWER,
@@ -692,7 +684,7 @@ SENSORS = {
     },
     "grid_export_energy": {
         "json_key": "outOngridEgy",
-        "name": "Grid Export Energy",
+        "name": "Grid Port Output Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:transmission-tower-import",
         "device_class": SensorDeviceClass.ENERGY,
@@ -727,7 +719,7 @@ SENSORS = {
     # },
     "eps_output_energy": {
         "json_key": "outEpsEgy",
-        "name": "EPS Output Energy",
+        "name": "AC Socket Output Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:power-plug",
         "device_class": SensorDeviceClass.ENERGY,
@@ -736,7 +728,7 @@ SENSORS = {
     },
     "eps_input_power": {
         "json_key": "swEpsInPw",
-        "name": "EPS Input Power",
+        "name": "AC Socket Input Power",
         "unit": UnitOfPower.WATT,
         "icon": "mdi:power-plug",
         "device_class": SensorDeviceClass.POWER,
@@ -744,7 +736,7 @@ SENSORS = {
     },
     "eps_input_energy": {
         "json_key": "inEpsEgy",
-        "name": "EPS Input Energy",
+        "name": "AC Socket Input Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:power-plug",
         "device_class": SensorDeviceClass.ENERGY,
@@ -753,7 +745,7 @@ SENSORS = {
     },
     "eps_state": {
          "json_key": "swEpsState",
-         "name": "EPS State",
+         "name": "AC Socket Status",
          "unit": None,
          "icon": "mdi:power-settings",
          "device_class": None,
@@ -761,7 +753,7 @@ SENSORS = {
     },
     "eps_switch": {
          "json_key": "swEps",
-         "name": "EPS Switch Status",
+         "name": "AC Socket Switch",
          "unit": None,
          "icon": "mdi:toggle-switch",
          "device_class": None,
@@ -803,50 +795,10 @@ SENSORS = {
     # },
     
     # Calculated Sensors
-    "home_power": {
-        "json_key": "calc_home_power",
-        "name": "Home Power",
-        "unit": UnitOfPower.WATT,
-        "icon": "mdi:home-lightning-bolt",
-        "device_class": SensorDeviceClass.POWER,
-        "state_class": SensorStateClass.MEASUREMENT,
-    },
-    "battery_net_power": {
-        "json_key": "calc_batt_net_power",
-        "name": "Battery Net Power",
-        "unit": UnitOfPower.WATT,
-        "icon": "mdi:battery-sync",
-        "device_class": SensorDeviceClass.POWER,
-        "state_class": SensorStateClass.MEASUREMENT,
-    },
-    "calc_battery_charge_power": {
-        "json_key": "calc_battery_charge_power",
-        "name": "Battery Charge Power (Calc)",
-        "unit": UnitOfPower.WATT,
-        "icon": "mdi:battery-charging",
-        "device_class": SensorDeviceClass.POWER,
-        "state_class": SensorStateClass.MEASUREMENT,
-    },
-    "calc_battery_discharge_power": {
-        "json_key": "calc_battery_discharge_power",
-        "name": "Battery Discharge Power (Calc)",
-        "unit": UnitOfPower.WATT,
-        "icon": "mdi:battery-minus",
-        "device_class": SensorDeviceClass.POWER,
-        "state_class": SensorStateClass.MEASUREMENT,
-    },
-    "grid_net_power": {
-        "json_key": "calc_grid_net_power",
-        "name": "Grid Net Power",
-        "unit": UnitOfPower.WATT,
-        "icon": "mdi:transmission-tower",
-        "device_class": SensorDeviceClass.POWER,
-        "state_class": SensorStateClass.MEASUREMENT,
-    },
     # More energy flow statistics
     "ac_to_battery_energy": {
         "json_key": "acOtBatEgy",
-        "name": "AC to Battery Energy",
+        "name": "AC Socket to Battery Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:battery-arrow-up",
         "device_class": SensorDeviceClass.ENERGY,
@@ -864,7 +816,7 @@ SENSORS = {
     },
     "pv_to_ac_energy": {
         "json_key": "pvOtAcEgy",
-        "name": "PV to AC Energy",
+        "name": "PV to AC Socket Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:solar-panel",
         "device_class": SensorDeviceClass.ENERGY,
@@ -873,7 +825,7 @@ SENSORS = {
     },
     "pv_to_grid_energy": {
         "json_key": "pvOtOngridEgy",
-        "name": "PV to Grid Energy",
+        "name": "PV to Grid Port Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:transmission-tower-import",
         "device_class": SensorDeviceClass.ENERGY,
@@ -882,7 +834,7 @@ SENSORS = {
     },
     "grid_to_ac_load_energy": {
         "json_key": "ongridOtAcLoadEgy",
-        "name": "Grid to AC Load Energy",
+        "name": "Grid Port to AC Socket Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:home-import-outline",
         "device_class": SensorDeviceClass.ENERGY,
@@ -891,7 +843,7 @@ SENSORS = {
     },
     "battery_to_ac_energy": {
         "json_key": "batOtAcEgy",
-        "name": "Battery to AC Energy",
+        "name": "Battery to AC Socket Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:battery-arrow-down",
         "device_class": SensorDeviceClass.ENERGY,
@@ -900,7 +852,7 @@ SENSORS = {
     },
     "battery_to_grid_energy": {
         "json_key": "batOtGridEgy",
-        "name": "Battery to Grid Energy",
+        "name": "Battery to Grid Port Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:transmission-tower-import",
         "device_class": SensorDeviceClass.ENERGY,
@@ -909,7 +861,7 @@ SENSORS = {
     },
     "grid_to_battery_energy": {
         "json_key": "ongridOtBatEgy",
-        "name": "Grid to Battery Energy",
+        "name": "Grid Port to Battery Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:battery-arrow-up",
         "device_class": SensorDeviceClass.ENERGY,
@@ -918,7 +870,7 @@ SENSORS = {
     },
     "ac_to_grid_energy": {
         "json_key": "acOtOngridEgy",
-        "name": "AC to Grid Energy",
+        "name": "AC Socket to Grid Port Energy",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "icon": "mdi:transmission-tower-import",
         "device_class": SensorDeviceClass.ENERGY,
@@ -951,55 +903,87 @@ SUBDEVICE_SENSORS = {
     },
     # CT / Smart Meter (devType=2)
     "ct": {
-        "power": {
+        "power_total_forward": {
             "key": "phasePw", # Resolve by subType to A/B/C/Total
-            "name": "Power",
+            "name": "CT Total Forward Power",
             "unit": UnitOfPower.WATT,
             "device_class": SensorDeviceClass.POWER,
             "state_class": SensorStateClass.MEASUREMENT,
             "icon": "mdi:current-ac",
         },
-        "power_a": {
+        "power_a_forward": {
             "key": "AphasePw",
-            "name": "A Phase Power",
+            "name": "CT Phase A Forward Power",
             "unit": UnitOfPower.WATT,
             "device_class": SensorDeviceClass.POWER,
             "state_class": SensorStateClass.MEASUREMENT,
             "icon": "mdi:current-ac",
         },
-        "power_b": {
+        "power_b_forward": {
             "key": "BphasePw",
-            "name": "B Phase Power",
+            "name": "CT Phase B Forward Power",
             "unit": UnitOfPower.WATT,
             "device_class": SensorDeviceClass.POWER,
             "state_class": SensorStateClass.MEASUREMENT,
             "icon": "mdi:current-ac",
         },
-        "power_c": {
+        "power_c_forward": {
             "key": "CphasePw",
-            "name": "C Phase Power",
+            "name": "CT Phase C Forward Power",
             "unit": UnitOfPower.WATT,
             "device_class": SensorDeviceClass.POWER,
             "state_class": SensorStateClass.MEASUREMENT,
             "icon": "mdi:current-ac",
         },
-        "energy": {
-            "key": "phaseEgy", # Resolve by subType to A/B/C/Total (Forward/Buy Energy)
-            "name": "Forward Energy",
+        "power_total_reverse": {
+            "key": "tnPhasePw",
+            "name": "CT Total Reverse Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT,
+            "icon": "mdi:current-ac",
+        },
+        "power_a_reverse": {
+            "key": "anPhasePw",
+            "name": "CT Phase A Reverse Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT,
+            "icon": "mdi:current-ac",
+        },
+        "power_b_reverse": {
+            "key": "bnPhasePw",
+            "name": "CT Phase B Reverse Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT,
+            "icon": "mdi:current-ac",
+        },
+        "power_c_reverse": {
+            "key": "cnPhasePw",
+            "name": "CT Phase C Reverse Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT,
+            "icon": "mdi:current-ac",
+        },
+        "energy_forward": {
+            "key": "tPhaseEgy", # Forward/Buy Energy
+            "name": "CT Forward Energy",
             "unit": UnitOfEnergy.KILO_WATT_HOUR,
             "device_class": SensorDeviceClass.ENERGY,
             "state_class": SensorStateClass.TOTAL_INCREASING,
             "icon": "mdi:transmission-tower-import",
-            "scale": 0.01, # Assumption
+            "scale": 0.01,
         },
         "energy_reverse": {
-            "key": "TnphaseEgy", # Reverse/Sell Energy (Total, compatible with tnPhaseEgy or sum of phases)
-            "name": "Reverse Energy",
+            "key": "tnPhaseEgy", # Reverse/Sell Energy
+            "name": "CT Reverse Energy",
             "unit": UnitOfEnergy.KILO_WATT_HOUR,
             "device_class": SensorDeviceClass.ENERGY,
             "state_class": SensorStateClass.TOTAL_INCREASING,
             "icon": "mdi:transmission-tower-export",
-            "scale": 0.01, # Assumption
+            "scale": 0.01,
         },
     },
 }
@@ -2194,26 +2178,25 @@ class JackerySubDeviceSensor(SensorEntity):
 
         # CT specific parsing logic
         if self._sensor_group == "ct":
-            if target_key == "phasePw":
-                # For CT Power, we want the Net Power (Buy - Sell)
-                buy, sell, _ = _extract_ct_grid_power(my_plug)
-                val = buy - sell
-            elif target_key == "AphasePw":
-                a_buy = my_plug.get("AphasePw") if my_plug.get("AphasePw") is not None else my_plug.get("aPhasePw")
-                a_sell = my_plug.get("AnphasePw") if my_plug.get("AnphasePw") is not None else my_plug.get("anPhasePw")
-                if a_buy is not None or a_sell is not None:
-                    val = _safe_float(a_buy) - _safe_float(a_sell)
-            elif target_key == "BphasePw":
-                b_buy = my_plug.get("BphasePw") if my_plug.get("BphasePw") is not None else my_plug.get("bPhasePw")
-                b_sell = my_plug.get("BnphasePw") if my_plug.get("BnphasePw") is not None else my_plug.get("bnPhasePw")
-                if b_buy is not None or b_sell is not None:
-                    val = _safe_float(b_buy) - _safe_float(b_sell)
-            elif target_key == "CphasePw":
-                c_buy = my_plug.get("CphasePw") if my_plug.get("CphasePw") is not None else my_plug.get("cPhasePw")
-                c_sell = my_plug.get("CnphasePw") if my_plug.get("CnphasePw") is not None else my_plug.get("cnPhasePw")
-                if c_buy is not None or c_sell is not None:
-                    val = _safe_float(c_buy) - _safe_float(c_sell)
-            elif target_key == "phaseEgy":
+            if self._sensor_key == "power_total_forward":
+                # For CT Forward Power (Total)
+                val, _, _ = _extract_ct_grid_power(my_plug)
+            elif self._sensor_key == "power_total_reverse":
+                # For CT Reverse Power (Total)
+                _, val, _ = _extract_ct_grid_power(my_plug)
+            elif self._sensor_key == "power_a_forward":
+                val = my_plug.get("AphasePw") if my_plug.get("AphasePw") is not None else my_plug.get("aPhasePw")
+            elif self._sensor_key == "power_b_forward":
+                val = my_plug.get("BphasePw") if my_plug.get("BphasePw") is not None else my_plug.get("bPhasePw")
+            elif self._sensor_key == "power_c_forward":
+                val = my_plug.get("CphasePw") if my_plug.get("CphasePw") is not None else my_plug.get("cPhasePw")
+            elif self._sensor_key == "power_a_reverse":
+                val = my_plug.get("AnphasePw") if my_plug.get("AnphasePw") is not None else my_plug.get("anPhasePw")
+            elif self._sensor_key == "power_b_reverse":
+                val = my_plug.get("BnphasePw") if my_plug.get("BnphasePw") is not None else my_plug.get("bnPhasePw")
+            elif self._sensor_key == "power_c_reverse":
+                val = my_plug.get("CnphasePw") if my_plug.get("CnphasePw") is not None else my_plug.get("cnPhasePw")
+            elif self._sensor_key == "energy_forward":
                 # For Forward Energy (Import)
                 val = my_plug.get("TphaseEgy") if my_plug.get("TphaseEgy") is not None else my_plug.get("tPhaseEgy")
                 if not val or val == 0:
@@ -2222,7 +2205,7 @@ class JackerySubDeviceSensor(SensorEntity):
                     c = my_plug.get("CphaseEgy") if my_plug.get("CphaseEgy") is not None else my_plug.get("cPhaseEgy")
                     if any(v is not None for v in (a, b, c)):
                         val = _safe_float(a) + _safe_float(b) + _safe_float(c)
-            elif target_key == "TnphaseEgy":
+            elif self._sensor_key == "energy_reverse":
                 # For Reverse Energy (Export)
                 val = my_plug.get("TnphaseEgy") if my_plug.get("TnphaseEgy") is not None else my_plug.get("tnPhaseEgy")
                 if not val or val == 0:

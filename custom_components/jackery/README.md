@@ -21,7 +21,6 @@
 - **Grid Meter Link** (智能 CT / 读表器连接 `gridSate`：normal / abnormal)
 - **Other Load Power** (默认负载功率 `otherLoadPw`) - 单位：W
 - **Max Feed-in Grid Power** (最大馈网功率 `maxFeedGrid`，只读) - 单位：W
-- **Function Enable** (功能使能位 `funcEnable`，属性 `func_enable_flags` 含 bit0~bit11 解码)
 - **Work Mode** (系统工作模式 `workModel`/`workMode` 0-7)
 
 #### 🔋 电池信息
@@ -29,25 +28,25 @@
 - **Battery Charge Power / Energy** (电池充/放电功率与能量) - W / kWh
 - **Battery Temperature** (电池温度) - 单位：°C
 - **Battery Count** (加电包数量)
-- **Battery to AC / Grid Energy** (电池到 AC 口 / 并网口能量) - kWh
+- **Battery to AC Socket / Grid Port Energy** (电池到 AC 口 / 并网口能量) - kWh
 
 #### ☀️ 太阳能 (PV)
 - **Solar Power / Energy** (太阳能总功率与发电量) - W / kWh
 - **Solar Power PV1 - PV4** (各路 PV 功率) - 单位：W
 - **Solar Energy PV1 - PV4** (各路 PV 发电量 `pv1Egy`~`pv4Egy`) - 单位：kWh
-- **PV to Battery / AC / Grid Energy** (光伏到电池 / AC 口 / 并网口能量) - kWh
+- **PV to Battery / AC Socket / Grid Port Energy** (光伏到电池 / AC 口 / 并网口能量) - kWh
 
 #### ⚡ 电网 / 并网口 (Grid)
-- **Grid Import / Export Power** (并网口输入 / 输出功率) - 单位：W
-- **Grid Import / Export Energy** (并网口输入 / 输出能量) - 单位：kWh
-- **Grid to AC Load / Battery Energy** (电网到 AC 负载 / 电池能量) - kWh
-- **AC to Battery / Grid Energy** (AC 微逆到电池 / 并网口能量) - kWh
+- **Grid Port Input / Export Power** (并网口输入 / 输出功率) - 单位：W
+- **Grid Port Input / Export Energy** (并网口输入 / 输出能量) - 单位：kWh
+- **Grid Port to AC Socket / Battery Energy** (电网到 AC 负载 / 电池能量) - kWh
+- **AC Socket to Battery / Grid Port Energy** (AC 微逆到电池 / 并网口能量) - kWh
 - **Max Output Power** (最大并网输出功率) - 单位：W
 
 #### 🔌 EPS (离网输出)
-- **EPS Output / Input Power** (EPS 输出 / 输入功率) - 单位：W
-- **EPS State** (交流插座通讯状态 `swEpsState`)
-- **EPS Switch Status** (EPS 开关状态)
+- **AC Socket Output / AC Socket Input Power** (EPS 输出 / 输入功率) - 单位：W
+- **AC Socket Status** (交流插座通讯状态 `swEpsState`)
+- **AC Socket Switch** (EPS 开关状态)
 
 #### ⚙️ 设置与状态（只读传感器）
 - **SOC Charge / Discharge Limit** (充 / 放电 SOC 限制) - 单位：%
@@ -56,7 +55,7 @@
 
 | 类型 | 实体 | 说明 |
 | :--- | :--- | :--- |
-| Switch | **EPS Switch** (`swEps`) | 交流插座（离网）开关 |
+| Switch | **AC Socket Switch** (`swEps`) | 交流插座（离网）开关 |
 | Switch | **Auto Standby Allowed** (`isAutoStandby`) | 是否允许自动待机 |
 | Select | **Auto Standby Mode** (`autoStandby`) | 待机模式：invalid / standby / on（0/1/2） |
 | Number | **SOC Charge / Discharge Limit** | 充电上限 / 放电下限 |
@@ -67,7 +66,7 @@
 ### 子设备（Smart CT / Smart Plug）
 
 - **Smart Plug**：负载功率、累计用电量、开 / 关开关（每台主机最多 10 个）。`commMode=1`（本地）时可通过 MQTT 控制；`commMode=2`（云平台）时 HA 会拒绝下发并提示使用 App。
-- **Smart CT**：实时功率、累计正向（购电）电量 `Forward Energy`、累计反向（馈网）电量 `Reverse Energy`（每台主机最多 1 台）。
+ - **Smart CT**：实时总正/负向功率 (`CT Total Forward/Reverse Power`)、分相正/负向功率、累计正向（购电）电量 `CT Forward Energy`、累计反向（馈网）电量 `CT Reverse Energy`（每台主机最多 1 台）。
 - 子设备数据从主机 MQTT 消息中消失时，对应实体标记为 `Unavailable`，重新出现时自动恢复。
 
 ## 前置要求
@@ -221,12 +220,9 @@ config/
 | 维度 | 公式 | 主要 MQTT 字段 |
 |------|------|----------------|
 | 光伏 | `pvPw` | `pvPw` |
-| 并网口 | `gridInPw - gridOutPw`（回退 `inOngridPw - outOngridPw`） | `gridInPw`, `gridOutPw`, `inOngridPw`, `outOngridPw` |
+| Grid | `gridInPw - gridOutPw`（回退 `inOngridPw - outOngridPw`） | `gridInPw`, `gridOutPw`, `inOngridPw`, `outOngridPw` |
 | 电网 | CT 优先；无 CT 时 `inGridSidePw - outGridSidePw` | `TphasePw`, `TnphasePw`, `inGridSidePw`, `outGridSidePw` |
 | AC Socket | `swEpsInPw > 0 ? swEpsInPw : swEpsOutPw` | `swEpsInPw`, `swEpsOutPw` |
-| 电池净功率 | `pv + ac + ong` | 计算字段 `calc_batt_net_power` |
-| 家庭负载 | `grid - ong`（含 CT 异常分支） | 计算字段 `calc_home_power` |
-
 ## 查看传感器
 
 配置完成后，你可以在以下位置查看传感器：
@@ -260,13 +256,8 @@ type: custom:power-flow-card-plus
 entities:
   solar:
     entity: sensor.jackery_{sn}_solar_power
-  grid:
-    entity: sensor.jackery_{sn}_grid_net_power
-    display_state: two_way
   battery:
     entity:
-      consumption: sensor.jackery_{sn}_calc_battery_charge_power
-      production: sensor.jackery_{sn}_calc_battery_discharge_power
     state_of_charge: sensor.jackery_{sn}_battery_soc
     display_state: two_way
   home:
