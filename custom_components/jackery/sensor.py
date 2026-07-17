@@ -131,11 +131,11 @@ def _pick_best_power_net(candidates: list[float]) -> float:
 
 def _extract_ct_grid_power(ct_data: dict[str, Any]) -> tuple[float, float, bool]:
     """Extract buy/sell power from CT sub-device; returns (grid_buy, grid_sell, has_power_fields)."""
-    # Try all possible casing and variants for total fields
+    # 1. 优先读取设备上报的总值
     t_phase_pw = ct_data.get("TphasePw") if ct_data.get("TphasePw") is not None else ct_data.get("tPhasePw")
     tn_phase_pw = ct_data.get("TnphasePw") if ct_data.get("TnphasePw") is not None else ct_data.get("tnPhasePw")
     
-    # If total fields are missing or zero, try to sum up phase fields
+    # 2. 如果总值为缺失或为 0，则通过分相求和计算作为备份
     if not t_phase_pw or t_phase_pw == 0:
         a_pw = ct_data.get("AphasePw") if ct_data.get("AphasePw") is not None else ct_data.get("aPhasePw")
         b_pw = ct_data.get("BphasePw") if ct_data.get("BphasePw") is not None else ct_data.get("bPhasePw")
@@ -150,7 +150,7 @@ def _extract_ct_grid_power(ct_data: dict[str, Any]) -> tuple[float, float, bool]
         if any(v is not None for v in (an_pw, bn_pw, cn_pw)):
             tn_phase_pw = _safe_float(an_pw) + _safe_float(bn_pw) + _safe_float(cn_pw)
 
-    has_power_fields = t_phase_pw is not None or tn_phase_pw is not None
+    has_power_fields = any(v is not None for v in (t_phase_pw, tn_phase_pw))
     if not has_power_fields:
         return 0.0, 0.0, False
 
@@ -216,9 +216,6 @@ def _grid_net_from_system(
 def _normalize_payload_fields(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize MQTT field aliases for cache merging and energy flow calculation."""
     result = dict(payload)
-
-    if "soc" in result and result.get("batSoc") is None:
-        result["batSoc"] = result["soc"]
 
     if result.get("gridInPw") is None and result.get("gridBuyPw") is not None:
         result["gridInPw"] = result["gridBuyPw"]
@@ -514,6 +511,14 @@ SENSORS = {
         "name": "Battery SOC",
         "unit": PERCENTAGE,
         "icon": "mdi:battery-50",
+        "device_class": SensorDeviceClass.BATTERY,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "average_soc": {
+        "json_key": "soc",
+        "name": "Average SOC",
+        "unit": PERCENTAGE,
+        "icon": "mdi:battery-70",
         "device_class": SensorDeviceClass.BATTERY,
         "state_class": SensorStateClass.MEASUREMENT,
     },
@@ -2052,7 +2057,7 @@ class JackerySensor(SensorEntity):
                 self._attr_native_value = float(value) * 0.1
             except (TypeError, ValueError):
                 pass
-        elif self._sensor_id == "battery_soc" or self._sensor_id == "battery_count":
+        elif self._sensor_id in ("battery_soc", "average_soc", "battery_count"):
              try:
                  self._attr_native_value = int(value)
              except (TypeError, ValueError):
@@ -2197,23 +2202,11 @@ class JackerySubDeviceSensor(SensorEntity):
             elif self._sensor_key == "power_c_reverse":
                 val = my_plug.get("CnphasePw") if my_plug.get("CnphasePw") is not None else my_plug.get("cnPhasePw")
             elif self._sensor_key == "energy_forward":
-                # For Forward Energy (Import)
+                # For Forward Energy (Import) - 只取设备上报值
                 val = my_plug.get("TphaseEgy") if my_plug.get("TphaseEgy") is not None else my_plug.get("tPhaseEgy")
-                if not val or val == 0:
-                    a = my_plug.get("AphaseEgy") if my_plug.get("AphaseEgy") is not None else my_plug.get("aPhaseEgy")
-                    b = my_plug.get("BphaseEgy") if my_plug.get("BphaseEgy") is not None else my_plug.get("bPhaseEgy")
-                    c = my_plug.get("CphaseEgy") if my_plug.get("CphaseEgy") is not None else my_plug.get("cPhaseEgy")
-                    if any(v is not None for v in (a, b, c)):
-                        val = _safe_float(a) + _safe_float(b) + _safe_float(c)
             elif self._sensor_key == "energy_reverse":
-                # For Reverse Energy (Export)
+                # For Reverse Energy (Export) - 只取设备上报值
                 val = my_plug.get("TnphaseEgy") if my_plug.get("TnphaseEgy") is not None else my_plug.get("tnPhaseEgy")
-                if not val or val == 0:
-                    an = my_plug.get("AnphaseEgy") if my_plug.get("AnphaseEgy") is not None else my_plug.get("anPhaseEgy")
-                    bn = my_plug.get("BnphaseEgy") if my_plug.get("BnphaseEgy") is not None else my_plug.get("bnPhaseEgy")
-                    cn = my_plug.get("CnphaseEgy") if my_plug.get("CnphaseEgy") is not None else my_plug.get("cnPhaseEgy")
-                    if any(v is not None for v in (an, bn, cn)):
-                        val = _safe_float(an) + _safe_float(bn) + _safe_float(cn)
         else:
             # Smart Plug logic
             val = my_plug.get(target_key)

@@ -24,7 +24,8 @@
 - **Work Mode** (系统工作模式 `workModel`/`workMode` 0-7)
 
 #### 🔋 电池信息
-- **Battery SOC** (电池电量) - 单位：%
+- **Battery SOC** (主包电池电量 `batSoc`) - 单位：%
+- **Average SOC** (主机+加电包平均电量 `soc`) - 单位：%
 - **Battery Charge Power / Energy** (电池充/放电功率与能量) - W / kWh
 - **Battery Temperature** (电池温度) - 单位：°C
 - **Battery Count** (加电包数量)
@@ -153,9 +154,9 @@ config/
 
 3. **数据处理**：
    - 接收 `status` / `event` 主题的 JSON 数据并合并进缓存
-   - 解析字段（如 `batSoc`, `pvPw`、`stat`、`softver`、`deviceType` 等）
+   - 解析字段（如 `soc`, `batSoc`, `pvPw`、`stat`、`softver`、`deviceType` 等）
    - 显式处理 `type: 106` 系统全量上报（`workModel` → `workMode`，并网/CT/读表器状态等）
-   - 显式处理 `type: 107` 增量上报（`soc` → `batSoc`，`workMode` → `work_mode` 传感器）
+   - 显式处理 `type: 107` 增量上报（`soc`, `batSoc`, `workMode` 等）
    - 兼容扁平 `status` 报文（无 `type`/`body` 包装时直接提取功率字段）
    - 按 App 公式计算能量流（电网、家庭负载、AC Socket、电池净功率）
    - 转换数据单位（如温度 ×0.1、能量 ×0.01）
@@ -175,6 +176,7 @@ config/
   - Payload 示例：
     ```json
     {
+      "soc": 85,
       "batSoc": 85,
       "batInPw": 0,
       "batOutPw": 150,
