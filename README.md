@@ -45,7 +45,7 @@ Before the Jackery integration can receive any data, **both of the following req
 - A token is generated automatically. Enter it on the device-authentication screen of the Jackery integration in Home Assistant.
 - **⚠️ App version requirement:** This entry point is available only in Jackery app versions later than **2.0.0**.
 
-![](img/pic/2APP MQTT配置.png)
+![](img/pic/2APPMQTT%E9%85%8D%E7%BD%AE.png)
 
 ## 3. Installation
 
