@@ -1,145 +1,251 @@
-## Jackery – Home Assistant Energy Monitoring Integration
+# Jackery – SolarVault3 Series Home Assistant Custom Integration
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/ht-it-lab/jackery.svg)](https://github.com/ht-it-lab/jackery/releases)
-[![License](https://img.shields.io/github/license/ht-it-lab/jackery.svg)](LICENSE)
+This official Jackery custom integration for Home Assistant receives monitoring data from Jackery SolarVault3 Series energy-storage systems via MQTT and creates the corresponding sensor entities.
 
-> **⚠️ Beta Stage**: This integration is currently in Beta testing phase and may be unstable. Please use with caution and report any issues.
+## 1. Features
 
-Jackery is a **custom Home Assistant integration** that uses **MQTT** to monitor solar, grid, battery, EPS and home energy data from a Jackery energy system.
+The integration uses the **Coordinator Pattern**. Each SolarVault3 host has its own `JackeryDataCoordinator` instance, which centrally manages MQTT subscriptions and data requests for that host. Tasks for different hosts are isolated and do not affect one another.
 
-The integration is implemented in `custom_components/Jackery/sensor.py` and is built around a shared **coordinator** (`JackeryDataCoordinator`) that efficiently manages subscriptions and data requests for all sensors.
+> **Multiple-host support:** The integration supports an unlimited number of instances. Repeat the configuration process to add multiple SolarVault3 hosts. Each host appears in Home Assistant as an individual device; any connected Smart CTs and Smart Plugs appear as child devices.
 
+### 1.1 Entity List
 
-### Features
+The integration provides comprehensive sensor data and control capabilities, including primary-device controls, operating status, real-time power, energy statistics, and real-time power and energy statistics for child devices.
 
-- **Custom Home Assistant integration** (no YAML entities required)
-- **MQTT-based data flow** with a shared `JackeryDataCoordinator`
-- Periodic `data_get` requests every **5 seconds** for all sensors
-- Real-time **power sensors** (W) and cumulative **energy sensors** (kWh)
-- **Battery SoC** in percent with proper scaling
-- Ready-to-use example configuration for **Energy Flow Card Plus**
+For details, see [SolarVault 3 Series HA Entity List]().
 
+### 1.2 Child Device Information
 
-### Prerequisites
+- **Smart Plug:** Load power, cumulative energy consumption, and an on/off switch (up to 10 per host). When `commMode=1` (local), the plug can be controlled through MQTT. When `commMode=2` (cloud platform), Home Assistant rejects control commands and prompts you to use the app.
+- **Smart CT:** Real-time power, cumulative forward (imported) energy (`Forward Energy`), and cumulative reverse (exported) energy (`Reverse Energy`) (up to one per host).
+- If child-device data is no longer present in host MQTT messages, the corresponding entities are marked `Unavailable`. They are restored automatically when the data reappears.
 
-Before the Jackery integration can receive any data, **two things must be in place**:
+## 2. Prerequisites
 
-1. **MQTT broker/server is configured and reachable**
-   
-   - A running MQTT broker (e.g. Mosquitto, EMQX, etc.) is required.
-   - Home Assistant's built‑in **MQTT integration** must be configured to connect to this broker.
-   - The broker address, port, username/password (if any) should match what your device and simulator are using.
-   - In your MQTT configuration, **replace the IP with the address of your own MQTT server**.
-   ![mqtt_config](./img/mqtt_config.png)
-   ![mqtt_config](./img/mqtt_config_2.png)
-2. **Device is configured from the Jackery app**
-   
-   - Use the vendor/Jackery mobile app to add the device/gateway and complete its initial setup.
-   - **⚠️ APP Version Requirement**: Jackery APP version must be greater than **2.0.0** to support this integration.
-   - Make sure the device has network access and is configured so that it can connect to your MQTT/cloud backend.
-   - Go to Device Details Page > Settings > MQTT in the Jackery app to open the configuration page.
-   - In the Jackery app configuration, **replace the IP with the address of your own MQTT server**.
-   ![jackery_config](./img/app_config_mqtt.png)
+Before the Jackery integration can receive any data, **both of the following requirements must be met**:
 
----
+### Requirement 1: An MQTT broker/server is configured and accessible
 
-### Installation
+⚠️ **Important:** This integration depends on Home Assistant's MQTT integration. Configure MQTT before installing Jackery. The following example uses Mosquitto:
 
-#### Option A: Install via HACS (recommended)
+1. In Home Assistant, go to **Settings** → **Apps** → **Install app**.
+2. Search for and install **Mosquitto broker**.
+3. Configure the MQTT broker connection details:
+   - **Broker:** The MQTT broker address, for example `localhost`, `core-mosquitto`, or an IP address.
+   - **Port:** The port number (default: `1883`).
+   - **Username/Password:** Enter credentials if authentication is required.
 
-1. **Add custom repository**
-   
-   - Open HACS in Home Assistant
-   - Click the three dots in the top-right → **Custom repositories**
-   - Add repository URL: `https://github.com/ht-it-lab/jackery`
-   - Category: `Integration`
-   - Click **Add**
-2. **Configure the integration**
-   - Go to **Settings → Devices & Services → Add Integration**
-   - Search for **"Jackery"**
-   - **Enter your Token** (Required for authentication)
-     - You can find this token in your Jackery app settings or device documentation.
-   - Enter an MQTT topic prefix if needed (default: `hb`)
-   - Submit to finish configuration
-     ![config](./img/jackery_home_add.png)
-     ![config](./img/jackery_home_config.png)
-> **Requirement**: The built-in **MQTT integration** must be configured and connected to your MQTT broker **before** Jackery will work.
+![](C:\Users\zhongns\Desktop\产品需求相关资料\HA需求信息\HA教程内容\pic\1安装MQTT应用.png)
 
-### Example: Energy Flow Card Plus
+### Requirement 2: MQTT settings have been configured for the device in the Jackery app
 
-You can use these sensors with the [Energy Flow Card Plus](https://github.com/flixlix/energy-flow-card-plus) Lovelace card.
+- Sign in to the Jackery app, add the device, and complete its initial setup.
+- In the Jackery app, go to **Device Details** → **Settings** → **MQTT** to open the configuration page.
+- On the MQTT configuration page, enter and enable your **MQTT server IP address, port, username, and password**.
+- A token is generated automatically. Enter it on the device-authentication screen of the Jackery integration in Home Assistant.
+- **⚠️ App version requirement:** This entry point is available only in Jackery app versions later than **2.0.0**.
 
-#### Install the card
+![](C:\Users\zhongns\Desktop\产品需求相关资料\HA需求信息\HA教程内容\pic\2APP MQTT配置.png)
 
-- Via HACS (recommended):
-  
-  - HACS → **Frontend** → search for **"Energy Flow Card Plus"** → install → restart HA.
-- Manual:
-  
-  - Download from the GitHub repository.
-  - Place files under `www/community/energy-flow-card-plus/`.
-  - Add a Lovelace resource pointing to `/hacsfiles/energy-flow-card-plus/energy-flow-card-plus.js` (type: JavaScript module).
+## 3. Installation
 
-#### Basic configuration example
+### 3.1 Install through HACS (recommended)
+
+1. Ensure that [HACS](https://hacs.xyz/) is installed.
+2. Go to **HACS** → click the menu in the upper-right corner → **Custom repositories**.
+3. Add the repository URL (`https://github.com/Jackery-Official/jackery`) and select the **Integration** category.
+4. Click **Add**.
+
+![](C:\Users\zhongns\Desktop\产品需求相关资料\HA需求信息\HA教程内容\pic\3安装集成.png)
+
+### 3.2 Configure the Integration
+
+1. In Home Assistant, go to **Settings** → **Devices & services**.
+2. Click **Add integration** in the lower-right corner.
+3. Search for `Jackery`.
+4. **Device SN:** Enter the serial number of the DIY3 host (required; it uniquely identifies the integration instance).
+5. **Token:** Enter the device token (required; it is obtained from the Jackery app and provisioned to the device. Commands include this token, which the device uses for authentication and authorization).
+6. **MQTT Topic Prefix:** Enter the MQTT topic prefix (optional; default: `hb`).
+7. Click **Submit** to complete the configuration.
+
+> **Multiple hosts:** Repeat the preceding steps to add multiple DIY3 hosts. Enter the corresponding SN and token for each host. The same SN cannot be added more than once.
+
+An error message is displayed if the MQTT integration has not been configured or is unavailable.
+
+![](C:\Users\zhongns\Desktop\产品需求相关资料\HA需求信息\HA教程内容\pic\4配置集成.png)
+
+### 3.3 Token Reauthentication
+
+Because a device does not return a message when it rejects a token, the integration uses a heuristic: **after configuration, it polls continuously every 5 seconds. If no message from the local host is received within 120 seconds** (which most likely indicates an invalid token or incorrect SN), **Reauthentication Required** is displayed automatically on the integration page. After you enter a valid token, the integration reloads automatically.
+
+## 4. Architecture
+
+### 4.1 Coordinator Pattern
+
+Each host uses a `JackeryDataCoordinator` instance to centrally manage data retrieval for that host:
+
+- **One coordinator per host:** Subscription and polling tasks for each host are independent and do not affect one another (task isolation).
+- **Centralized data requests:** A query request is sent every **5 seconds** (Phase 2 requirement).
+- **Automatic data distribution:** After receiving a response, the coordinator automatically distributes data to the appropriate entities according to JSON fields.
+- **Local-host message filtering:** The coordinator processes only messages belonging to its `device_sn`, preventing data from different hosts from being mixed.
+
+### 4.2 Data Flow
+
+1. **Subscription phase:**
+   - The coordinator subscribes to the host-specific topics `hb/device/{sn}/status` and `hb/device/{sn}/event`.
+   - Messages from other hosts are ignored.
+
+2. **Polling phase** (every 5 seconds):
+   - Sends a host status query to `hb/device/{sn}/action` (`type: 25`, single-device level).
+   - Sends a full grid-connected system query (`type: 105`, `body: null`); the device responds with full system attributes using `type: 106`.
+   - Sends a child-device query (`type: 100`; `devType=2` retrieves the CT, meter-reading head, and meter at the same time; the device reports each item separately with `type: 101`).
+
+3. **Data processing:**
+   - Receives JSON data from the `status` and `event` topics and merges it into the cache.
+   - Parses fields such as `batSoc`, `pvPw`, `stat`, `softver`, and `deviceType`.
+   - Explicitly handles full system reports of `type: 106` (`workModel` → `workMode`, including grid-connected, CT, and meter-reader status).
+   - Explicitly handles incremental reports of `type: 107` (`soc` → `batSoc`; `workMode` → the `work_mode` sensor).
+   - Supports flat `status` messages (when no `type`/`body` wrapper is present, power fields are extracted directly).
+   - Calculates energy flows according to the app formulas (grid, household load, AC socket, and net battery power).
+   - Converts data units, such as temperature × 0.1 and energy × 0.01.
+   - Updates all related entity states and refreshes the device model and firmware version as needed.
+
+4. **Offline and exception handling:**
+   - If no message is received from a host for more than **60 seconds**, all entities for that host are marked `Unavailable`; they are automatically marked `Available` when communication resumes.
+   - If a child device is absent from messages for more than 60 seconds, its corresponding entities are marked `Unavailable` (not deleted) and are restored automatically when it reappears.
+   - If JSON parsing fails, the last valid cache is retained and a warning is logged.
+
+## 5. MQTT Topic Format
+
+The integration uses the following MQTT topic pattern (assuming the default prefix `hb`):
+
+- **Status/data topic:** `hb/device/{sn}/status`
+  - The device publishes real-time status data to this topic.
+  - Example payload:
+    ```json
+    {
+      "batSoc": 85,
+      "batInPw": 0,
+      "batOutPw": 150,
+      "cellTemp": 255,
+      "pvPw": 400,
+      ...
+    }
+    ```
+
+- **Control/query topic:** `hb/device/{sn}/action`
+  - The integration sends query commands to this topic.
+  - Example payload:
+    ```json
+    {
+      "type": 25,
+      "eventId": 0,
+      "messageId": 1234,
+      "ts": 1700000000,
+      "token": "YOUR_TOKEN",
+      "body": null
+    }
+    ```
+
+- **Incremental-report topic:** `hb/device/{sn}/event` (`type: 107`)
+  - The device proactively publishes incremental attributes, such as SOC and operating mode.
+  - Example payload:
+    ```json
+    {
+      "type": 107,
+      "eventId": 0,
+      "messageId": 3984,
+      "ts": 1713337422,
+      "deviceType": 3,
+      "body": {
+        "soc": 12,
+        "workMode": 3
+      }
+    }
+    ```
+
+### Energy Flow Calculation Formulas
+
+| Metric | Formula | Primary MQTT Fields |
+|---|---|---|
+| PV | `pvPw` | `pvPw` |
+| Grid-connected port | `gridInPw - gridOutPw` (fallback: `inOngridPw - outOngridPw`) | `gridInPw`, `gridOutPw`, `inOngridPw`, `outOngridPw` |
+| Grid | CT takes priority; without a CT, `inGridSidePw - outGridSidePw` | `TphasePw`, `TnphasePw`, `inGridSidePw`, `outGridSidePw` |
+| AC Socket | `swEpsInPw > 0 ? swEpsInPw : swEpsOutPw` | `swEpsInPw`, `swEpsOutPw` |
+| Net battery power | `pv + ac + ong` | Calculated field: `calc_batt_net_power` |
+| Household load | `grid - ong` (including the CT exception branch) | Calculated field: `calc_home_power` |
+
+## 6. View Sensors
+
+After configuration, you can view the sensors in the following locations:
+
+- **Settings** → **Devices & services** → **Jackery** → select the applicable host device to view all its entities.
+- **Developer Tools** → **States** → search for `jackery` or the sensor name.
+- In a multiple-host setup, entity IDs include the host identifier, for example `sensor.jackery_<sn>_battery_soc`. Replace the IDs in the examples below with your actual entity IDs.
+- Each sensor includes the following attributes:
+  - `device_sn`: Device serial number.
+  - `raw_key`: Original JSON field name.
+
+## 7. Use in Lovelace
+
+The default device page presents more than 40 entities in a flat layout. It provides dense information but limited hierarchy, so a custom dashboard is recommended.
+
+### 7.1 Complete Visual Dashboard (Recommended)
+
+1. Install **Mushroom Cards** and **Power Flow Card Plus** through HACS.
+2. Follow [docs/lovelace_dashboard_setup.md](../../docs/lovelace_dashboard_setup.md) to create the **Jackery Energy** dashboard.
+3. Use [docs/lovelace_dashboard_jackery.yaml](../../docs/lovelace_dashboard_jackery.yaml) as the base configuration.
+4. For entity ID naming rules, see [docs/entity_id_reference.md](../../docs/entity_id_reference.md).
+
+Dashboard layout: status chips at the top → energy flow diagram → battery/PV/grid metrics → controls → collapsible detailed data.
+
+### 7.2 Energy Flow Card Only
+
+The project-root file [energy_flow_card_config.yaml](../../energy_flow_card_config.yaml) provides a single-card configuration. Replace the SN in each entity ID with the actual value, for example `sensor.jackery_hs2c12600262hh4_solar_power`:
 
 ```yaml
-type: custom:energy-flow-card-plus
+type: custom:power-flow-card-plus
 entities:
   solar:
-    entity: sensor.solar_power
-    name: Solar
-    icon: mdi:solar-power
+    entity: sensor.jackery_{sn}_solar_power
   grid:
-    entity:
-      consumption: sensor.grid_import_power    # buying from grid
-      production: sensor.grid_export_power    # selling to grid
-    name: Grid
-    icon: mdi:transmission-tower
+    entity: sensor.jackery_{sn}_grid_net_power
+    display_state: two_way
   battery:
     entity:
-      consumption: sensor.battery_charge_power      # charging
-      production: sensor.battery_discharge_power    # discharging
-    state_of_charge: sensor.battery_soc
-    name: Battery
-    icon: mdi:battery
+      consumption: sensor.jackery_{sn}_calc_battery_charge_power
+      production: sensor.jackery_{sn}_calc_battery_discharge_power
+    state_of_charge: sensor.jackery_{sn}_battery_soc
+    display_state: two_way
   home:
-    entity: sensor.home_power
-    name: Home
-    icon: mdi:home-lightning-bolt
-display_zero_lines:
-  mode: show
-  transparency: 50
-  grey_color: [189, 189, 189]
-w_decimals: 0
-kw_decimals: 2
-color_icons: true
-animation_speed: 10
-energy_date_selection: false
+    entity: sensor.jackery_{sn}_home_power
 ```
-![demo](img/demo.png)
-### Energy
-![energy](img/ha_energy.png)
-### Notes & Requirements
 
-- The MQTT broker must be running before you start the simulator or expect data in Home Assistant.
-- The integration sends a single `data_get` request every 5 seconds for **all sensors**, reducing MQTT traffic.
-- The device serial number (`device_sn`) is automatically obtained from LWT messages; no manual configuration is required.
-- When the MQTT broker is unavailable, the coordinator logs a warning and retries automatically.
-  
+## 8. Troubleshooting
 
----
+### 8.1 Common Issues
 
-### Links
+1. **The device cannot be discovered:**
+   - Confirm that the device is connected to the MQTT broker.
+   - Use an MQTT tool, such as MQTT Explorer, to monitor `hb/#` and confirm that the device is publishing messages.
+   - Confirm that the configured **Topic Prefix** matches the prefix actually used by the device (default: `hb`).
 
-- **Energy Flow Card Plus** – `https://github.com/flixlix/energy-flow-card-plus`
-- **Home Assistant MQTT Discovery** – `https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery`
-- **Home Assistant Developer Docs** – `https://developers.home-assistant.io/`
-- **Paho MQTT Python Client** – `https://github.com/eclipse/paho.mqtt.python`
+2. **The device SN is present, but data is not updating:**
+   - Check that the token is correct.
+   - Check whether the log contains `Sent poll request` entries.
+   - Confirm that the device responds to requests with `type: 25`.
 
----
+### 8.2 Enable Debug Logging
 
-### License
+Add the following to `configuration.yaml`:
+
+```yaml
+logger:
+  default: info
+  logs:
+    custom_components.jackery: debug
+```
+
+## 9. License
 
 MIT License
-
