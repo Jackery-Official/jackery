@@ -12,7 +12,7 @@ The integration uses the **Coordinator Pattern**. Each SolarVault3 host has its 
 
 The integration provides comprehensive sensor data and control capabilities, including primary-device controls, operating status, real-time power, energy statistics, and real-time power and energy statistics for child devices.
 
-For details, see [SolarVault 3 Series HA Entity List]().
+For details, see [SolarVault 3 Series HA Entity List](custom_components/jackery/HA%20Entity%20List.md).
 
 ### 1.2 Child Device Information
 
@@ -35,7 +35,7 @@ Before the Jackery integration can receive any data, **both of the following req
    - **Port:** The port number (default: `1883`).
    - **Username/Password:** Enter credentials if authentication is required.
 
-![](C:\Users\zhongns\Desktop\产品需求相关资料\HA需求信息\HA教程内容\pic\1安装MQTT应用.png)
+![](img/pic/1安装MQTT应用.png)
 
 ### Requirement 2: MQTT settings have been configured for the device in the Jackery app
 
@@ -45,7 +45,7 @@ Before the Jackery integration can receive any data, **both of the following req
 - A token is generated automatically. Enter it on the device-authentication screen of the Jackery integration in Home Assistant.
 - **⚠️ App version requirement:** This entry point is available only in Jackery app versions later than **2.0.0**.
 
-![](C:\Users\zhongns\Desktop\产品需求相关资料\HA需求信息\HA教程内容\pic\2APP MQTT配置.png)
+![](img/pic/2APP MQTT配置.png)
 
 ## 3. Installation
 
@@ -56,7 +56,7 @@ Before the Jackery integration can receive any data, **both of the following req
 3. Add the repository URL (`https://github.com/Jackery-Official/jackery`) and select the **Integration** category.
 4. Click **Add**.
 
-![](C:\Users\zhongns\Desktop\产品需求相关资料\HA需求信息\HA教程内容\pic\3安装集成.png)
+![](img/pic/3安装集成.png)
 
 ### 3.2 Configure the Integration
 
@@ -72,7 +72,7 @@ Before the Jackery integration can receive any data, **both of the following req
 
 An error message is displayed if the MQTT integration has not been configured or is unavailable.
 
-![](C:\Users\zhongns\Desktop\产品需求相关资料\HA需求信息\HA教程内容\pic\4配置集成.png)
+![](img/pic/4配置集成.png)
 
 ### 3.3 Token Reauthentication
 
