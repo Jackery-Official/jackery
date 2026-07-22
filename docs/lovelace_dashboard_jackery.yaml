@@ -1,5 +1,5 @@
 views:
-  - title: Jackery 全量能源看板
+  - title: Jackery Comprehensive Energy Dashboard
     path: jackery_full_dashboard
     type: sections
     max_columns: 3
@@ -20,22 +20,22 @@ views:
                 icon: mdi:thermometer
                 icon_color: orange
                 content: >-
-                  温度: {{
+                  Temp: {{
                   states('sensor.jackery_hs2c12600262hh4_battery_temperature')
                   }}°C
               - type: template
                 icon: mdi:state-machine
                 icon_color: purple
                 content: >-
-                  状态: {{ states('sensor.jackery_hs2c12600262hh4_status') }}
+                  Status: {{ states('sensor.jackery_hs2c12600262hh4_status') }}
               - type: template
                 icon: mdi:battery-multiple
                 icon_color: blue
                 content: >-
-                  电池包: {{ states('sensor.jackery_hs2c12600262hh4_battery_count')
-                  }}个
+                  Battery Packs: {{ states('sensor.jackery_hs2c12600262hh4_battery_count')
+                  }}
           - type: custom:power-flow-card-plus
-            title: 实时全景能量流拓扑
+            title: Real-time Energy Flow Topology
             entities:
               grid:
                 entity:
@@ -43,10 +43,10 @@ views:
                   production: sensor.jackery_hs2c12600262hh4_grid_export_power
                 display_state: two_way
                 color_circle: true
-                name: 外部电网
+                name: Grid
               solar:
                 entity: sensor.jackery_hs2c12600262hh4_solar_power
-                name: 光伏发电
+                name: Solar
               battery:
                 entity:
                   consumption: sensor.jackery_hs2c12600262hh4_battery_charge_power
@@ -54,14 +54,14 @@ views:
                 state_of_charge: sensor.jackery_hs2c12600262hh4_battery_soc
                 display_state: two_way
                 color_circle: true
-                name: 储能电池
+                name: Battery
               home:
                 entity: sensor.jackery_hs2c12600262hh4_home_power
                 color_icon: true
-                name: 家庭总负载
+                name: Home Load
               individual:
                 - entity: sensor.jackery_hs2c12600262hh4_ac_socket_power
-                  name: EPS 离网系统
+                  name: EPS Off-grid System
                   icon: mdi:power-plug
                   display_zero: true
             watt_threshold: 1000
@@ -71,75 +71,75 @@ views:
       - type: grid
         cards:
           - type: custom:mushroom-title-card
-            title: 实时功率监测
-            subtitle: 设备各端口瞬时负载
+            title: Power Monitoring
+            subtitle: Instantaneous load per port
           - type: custom:mushroom-entity-card
             entity: sensor.jackery_hs2c12600262hh4_battery_net_power
-            name: 电池净功率 (计算)
+            name: Battery Net Power (Calc)
             icon_color: amber
             layout: horizontal
           - type: custom:mushroom-entity-card
             entity: sensor.jackery_hs2c12600262hh4_battery_charge_power
-            name: 电池充电功率
+            name: Battery Charge Power
             icon_color: green
             layout: horizontal
           - type: custom:mushroom-entity-card
             entity: sensor.jackery_hs2c12600262hh4_battery_discharge_power
-            name: 电池放电功率
+            name: Battery Discharge Power
             icon_color: red
             layout: horizontal
           - type: custom:mushroom-entity-card
             entity: sensor.jackery_hs2c12600262hh4_grid_import_power
-            name: 电网买电功率
+            name: Grid Import Power
             icon_color: blue
             layout: horizontal
           - type: custom:mushroom-entity-card
             entity: sensor.jackery_hs2c12600262hh4_grid_export_power
-            name: 电网馈网功率
+            name: Grid Export Power
             icon_color: teal
             layout: horizontal
           - type: custom:mushroom-entity-card
             entity: sensor.jackery_hs2c12600262hh4_eps_input_power
-            name: EPS 输入侧功率
+            name: EPS Input Power
             icon_color: purple
             layout: horizontal
       - type: grid
         cards:
           - type: custom:mushroom-title-card
-            title: 智能控制中心
-            subtitle: 参数设置与主控执行
+            title: Control Center
+            subtitle: Settings & Master Control
           - type: custom:mushroom-entity-card
             entity: switch.jackery_hs2c12600262hh4_eps_switch
-            name: EPS 离网强电输出开关
+            name: EPS Off-grid Output Switch
             icon_color: light-blue
             tap_action:
               action: toggle
             secondary_info: state
           - type: custom:mushroom-entity-card
             entity: switch.jackery_hs2c12600262hh4_auto_standby_allowed
-            name: 允许自动待机 (开关)
+            name: Auto Standby Allowed
             icon_color: deep-purple
             tap_action:
               action: toggle
           - type: custom:mushroom-select-card
             entity: select.jackery_hs2c12600262hh4_auto_standby_mode
-            name: 待机模式策略
+            name: Standby Mode Strategy
             icon_color: deep-purple
           - type: custom:mushroom-number-card
             entity: number.jackery_hs2c12600262hh4_soc_charge_limit
-            name: 充电 SOC 目标上限
+            name: SOC Charge Limit
             icon_color: green
           - type: custom:mushroom-number-card
             entity: number.jackery_hs2c12600262hh4_soc_discharge_limit
-            name: 放电 SOC 安全下限
+            name: SOC Discharge Limit
             icon_color: deep-orange
           - type: custom:mushroom-number-card
             entity: number.jackery_hs2c12600262hh4_max_output_power_ongrid
-            name: 并网口最大输出功率
+            name: Max Grid Output Power
             icon_color: teal
           - type: custom:mushroom-entity-card
             entity: button.jackery_hs2c12600262hh4_reboot
-            name: 重启主控硬件设备
+            name: Reboot Master Device
             icon_color: red
             layout: horizontal
             secondary_info: none
@@ -148,137 +148,137 @@ views:
       - type: grid
         cards:
           - type: custom:mushroom-title-card
-            title: 光伏分路采样监测
-            subtitle: 4组独立MPPT的实时与历史
+            title: Solar Monitoring
+            subtitle: Real-time & History for 4 MPPTs
           - type: entities
             show_header_toggle: false
             state_color: true
             entities:
               - type: section
-                label: 实时瞬时功率
+                label: Real-time Power
               - entity: sensor.jackery_hs2c12600262hh4_solar_power_pv1
-                name: PV1 (第1路功率)
+                name: PV1 (String 1)
                 icon: mdi:solar-panel-large
               - entity: sensor.jackery_hs2c12600262hh4_solar_power_pv2
-                name: PV2 (第2路功率)
+                name: PV2 (String 2)
                 icon: mdi:solar-panel-large
               - entity: sensor.jackery_hs2c12600262hh4_solar_power_pv3
-                name: PV3 (第3路功率)
+                name: PV3 (String 3)
                 icon: mdi:solar-panel-large
               - entity: sensor.jackery_hs2c12600262hh4_solar_power_pv4
-                name: PV4 (第4路功率)
+                name: PV4 (String 4)
                 icon: mdi:solar-panel-large
               - type: section
-                label: 历史累计发电
+                label: Historical Energy
               - entity: sensor.jackery_hs2c12600262hh4_solar_energy_pv1
-                name: PV1 发电累计
+                name: PV1 Energy Total
               - entity: sensor.jackery_hs2c12600262hh4_solar_energy_pv2
-                name: PV2 发电累计
+                name: PV2 Energy Total
               - entity: sensor.jackery_hs2c12600262hh4_solar_energy_pv3
-                name: PV3 发电累计
+                name: PV3 Energy Total
               - entity: sensor.jackery_hs2c12600262hh4_solar_energy_pv4
-                name: PV4 发电累计
+                name: PV4 Energy Total
       - type: grid
         cards:
           - type: custom:mushroom-title-card
-            title: 核心历史累计电量
-            subtitle: 各物理端口的能量积算明细
+            title: Core Energy History
+            subtitle: Detailed energy totals per port
           - type: entities
             show_header_toggle: false
             state_color: true
             entities:
               - entity: sensor.jackery_hs2c12600262hh4_solar_energy
-                name: 光伏累计总发电量
+                name: Total Solar Energy
               - entity: sensor.jackery_hs2c12600262hh4_battery_charge_energy
-                name: 储能电池累计充电量
+                name: Total Battery Charge Energy
               - entity: sensor.jackery_hs2c12600262hh4_battery_discharge_energy
-                name: 储能电池累计放电量
+                name: Total Battery Discharge Energy
               - entity: sensor.jackery_hs2c12600262hh4_grid_import_energy
-                name: 电网总买电 (输入)
+                name: Total Grid Import (Input)
               - entity: sensor.jackery_hs2c12600262hh4_grid_export_energy
-                name: 电网总馈网 (输出)
+                name: Total Grid Export (Output)
               - entity: sensor.jackery_hs2c12600262hh4_eps_input_energy
-                name: EPS 接口总输入电量
+                name: Total EPS Input Energy
               - entity: sensor.jackery_hs2c12600262hh4_eps_output_energy
-                name: EPS 接口总输出负载电量
+                name: Total EPS Output Energy
       - type: grid
         cards:
           - type: custom:mushroom-title-card
-            title: 内部节点交叉路由统计
-            subtitle: 极为详尽的能量流向结算数据
+            title: Internal Energy Routing
+            subtitle: Detailed energy flow settlement data
           - type: entities
             show_header_toggle: false
             state_color: true
             entities:
               - entity: sensor.jackery_hs2c12600262hh4_pv_to_battery_energy
-                name: 光伏直接充入电池
+                name: Solar to Battery
                 icon: mdi:solar-power-variant
               - entity: sensor.jackery_hs2c12600262hh4_pv_to_ac_energy
-                name: 光伏直供给 AC 口
+                name: Solar to AC Output
                 icon: mdi:solar-panel
               - entity: sensor.jackery_hs2c12600262hh4_pv_to_grid_energy
-                name: 光伏直输给并网口
+                name: Solar to Grid
                 icon: mdi:transmission-tower-export
               - entity: sensor.jackery_hs2c12600262hh4_ac_to_battery_energy
-                name: AC 口充电入电池
+                name: AC Input to Battery
                 icon: mdi:battery-arrow-up
               - entity: sensor.jackery_hs2c12600262hh4_ac_to_grid_energy
-                name: AC 口输出到并网口
+                name: AC Output to Grid
                 icon: mdi:transmission-tower-export
               - entity: sensor.jackery_hs2c12600262hh4_battery_to_ac_energy
-                name: 电池放电供给 AC 口
+                name: Battery to AC Output
                 icon: mdi:battery-arrow-down
               - entity: sensor.jackery_hs2c12600262hh4_battery_to_grid_energy
-                name: 电池放电到并网口
+                name: Battery to Grid
                 icon: mdi:transmission-tower-export
               - entity: sensor.jackery_hs2c12600262hh4_grid_to_battery_energy
-                name: 并网口充电入电池
+                name: Grid to Battery
                 icon: mdi:battery-arrow-up
               - entity: sensor.jackery_hs2c12600262hh4_grid_to_ac_load_energy
-                name: 并网口直接供给 AC
+                name: Grid to AC Output
                 icon: mdi:home-import-outline
       - type: grid
         cards:
           - type: custom:mushroom-title-card
-            title: 并网系统状态
-            subtitle: type=105/106 系统全量属性
+            title: Grid System Status
+            subtitle: type=105/106 System attributes
           - type: entities
             show_header_toggle: false
             state_color: true
             entities:
               - entity: sensor.jackery_hs2c12600262hh4_ongrid_status
-                name: 并网状态 (ongridStat)
+                name: On-grid Status (ongridStat)
               - entity: sensor.jackery_hs2c12600262hh4_ct_status
-                name: CT 工作状态 (ctStat)
+                name: CT Status (ctStat)
               - entity: sensor.jackery_hs2c12600262hh4_grid_meter_link
-                name: CT/读表器连接 (gridSate)
+                name: CT/Meter Link (gridSate)
               - entity: sensor.jackery_hs2c12600262hh4_other_load_power
-                name: 默认负载功率 (otherLoadPw)
+                name: Default Load Power (otherLoadPw)
               - entity: sensor.jackery_hs2c12600262hh4_max_feed_in_grid_power
-                name: 最大馈网功率 (maxFeedGrid)
+                name: Max Feed-in Power (maxFeedGrid)
               - entity: sensor.jackery_hs2c12600262hh4_function_enable
-                name: 功能使能位 (funcEnable)
+                name: Function Enable (funcEnable)
       - type: grid
         cards:
           - type: custom:mushroom-title-card
-            title: 主设备 · 调试与原始状态
-            subtitle: HS2C12600262HH4 主机协议只读传感器（不含 CT / 插座）
+            title: Master Device · Debug
+            subtitle: HS2C12600262HH4 Protocol Sensors (excludes CT/Plug)
           - type: entities
             show_header_toggle: false
             state_color: true
             entities:
               - entity: sensor.jackery_hs2c12600262hh4_work_mode
-                name: 工作模式 (type=106/107)
+                name: Work Mode (type=106/107)
               - entity: sensor.jackery_hs2c12600262hh4_eps_state
-                name: EPS 运行状态 (0/1)
+                name: EPS Status (0/1)
               - entity: sensor.jackery_hs2c12600262hh4_eps_switch_status
-                name: EPS 开关状态位 (只读)
+                name: EPS Switch Status (Read-only)
               - entity: sensor.jackery_hs2c12600262hh4_max_output_power_ongrid
-                name: 并网功率限制 (只读传感器)
+                name: Grid Power Limit (Read-only)
               - entity: sensor.jackery_hs2c12600262hh4_soc_charge_limit
-                name: 充电上限 (只读)
+                name: Charge Limit (Read-only)
               - entity: sensor.jackery_hs2c12600262hh4_soc_discharge_limit
-                name: 放电下限 (只读)
+                name: Discharge Limit (Read-only)
 
       - type: grid
         columns: 1
@@ -286,24 +286,24 @@ views:
           - type: vertical-stack
             cards:
               - type: custom:mushroom-title-card
-                title: 子设备与智能配件
-                subtitle: type=101 自动发现 · 与主机实体分开展示（Jackery CT / Plug 独立设备）
+                title: Sub-devices & Accessories
+                subtitle: type=101 Auto-discovery · Displayed separately (Jackery CT / Plug)
               - type: entities
-                title: CT / 电表
+                title: CT / Meter
                 state_color: true
                 show_header_toggle: true
                 entities:
                   - type: section
-                    label: Shelly Pro EM50 · 841fe891ba44 (devType=3 · A相)
+                    label: Shelly Pro EM50 · 841fe891ba44 (devType=3 · Phase A)
                   - entity: sensor.jackery_ct_841fe891ba44_power
-                    name: 实时功率
+                    name: Real-time Power
                     secondary_info: last-changed
                   - entity: sensor.jackery_ct_841fe891ba44_forward_energy
-                    name: 正向电量 (购电)
+                    name: Forward Energy (Import)
                   - entity: sensor.jackery_ct_841fe891ba44_reverse_energy
-                    name: 反向电量 (馈网)
+                    name: Reverse Energy (Export)
               - type: custom:mushroom-title-card
-                title: 智能插座
+                title: Smart Plug
                 subtitle: Shelly Plug · 9070694adb4c (devType=6)
               - type: custom:mushroom-chips-card
                 chips:
@@ -325,16 +325,16 @@ views:
                     content: >-
                       {% if state_attr('switch.jackery_plug_9070694adb4c_switch',
                       'mqtt_controllable') %}
-                      可 MQTT 控制
+                      Controllable via MQTT
                       {% else %}
                       {{
                       state_attr('switch.jackery_plug_9070694adb4c_switch',
-                      'mqtt_control_block_reason') | default('不可 MQTT 控制')
+                      'mqtt_control_block_reason') | default('Not Controllable')
                       }}
                       {% endif %}
               - type: custom:mushroom-entity-card
                 entity: switch.jackery_plug_9070694adb4c_switch
-                name: 插座开关 (type=103)
+                name: Plug Switch (type=103)
                 icon_color: amber
                 layout: horizontal
                 tap_action:
@@ -347,12 +347,12 @@ views:
                 show_header_toggle: false
                 entities:
                   - entity: sensor.jackery_plug_9070694adb4c_power
-                    name: 实时功率
+                    name: Real-time Power
                   - entity: sensor.jackery_plug_9070694adb4c_energy
-                    name: 累计电量
+                    name: Cumulative Energy
     header:
       card:
         type: markdown
         content: |-
-          # 你好 {{ user }} 
+          # Hello {{ user }} 
           JACKERY HomeAssistant✨

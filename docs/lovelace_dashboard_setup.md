@@ -1,53 +1,53 @@
-# Jackery Lovelace 可视化看板安装指南
+# Jackery Lovelace Visualization Dashboard Installation Guide
 
-本指南帮助你将 Jackery 设备从默认「实体网格」升级为分区化能源看板（能量流图 + 关键指标 + 控制区）。
+This guide helps you upgrade your Jackery device view from the default "Entity Grid" to a partitioned energy dashboard (Energy Flow Diagram + Key Metrics + Control Section).
 
-## 1. 安装 HACS 前端卡片
+## 1. Install HACS Frontend Cards
 
-在 Home Assistant 中：
+In Home Assistant:
 
-1. 打开 **HACS** → **前端**
-2. 搜索并安装：
-   - **[Mushroom Cards](https://github.com/piitaya/lovelace-mushroom)** — 顶部芯片、实体卡片
-   - **[Power Flow Card Plus](https://github.com/flixlix/power-flow-card-plus)** — 能量流向图
-3. （可选）**mini-graph-card** — 历史迷你曲线；**card-mod** — 样式微调
-4. 安装后 **清除浏览器缓存** 或重启 HA，确保卡片加载
+1. Open **HACS** → **Frontend**
+2. Search for and install:
+   - **[Mushroom Cards](https://github.com/piitaya/lovelace-mushroom)** — Top chips, entity cards
+   - **[Power Flow Card Plus](https://github.com/flixlix/power-flow-card-plus)** — Energy flow diagram
+3. (Optional) **mini-graph-card** — Historical mini graphs; **card-mod** — Style fine-tuning
+4. After installation, **clear your browser cache** or restart HA to ensure the cards are loaded.
 
-> **子设备区说明**：看板底部「子设备与智能配件」使用 HA 原生 `entities` 卡片，**不需要**安装 `auto-entities`。若使用 `custom:auto-entities` 却未安装该 HACS 插件，会显示红色 **「配置错误」**。
+> **Sub-device Section Note**: The "Sub-devices & Accessories" section at the bottom of the dashboard uses the native HA `entities` card and **does not** require `auto-entities`. If you use `custom:auto-entities` without having the HACS plugin installed, it will display a red **"Configuration Error"**.
 
-## 2. 核对实体 ID
+## 2. Verify Entity IDs
 
-1. 进入 **开发者工具** → **状态**
-2. 搜索 `jackery_` + 你的设备 SN（小写）
-3. 对照 [entity_id_reference.md](entity_id_reference.md) 确认 ID
-4. 若 SN 不是 `HS2C12600262HH4`，在配置文件中全局替换 `hs2c12600262hh4`
+1. Go to **Developer Tools** → **States**
+2. Search for `jackery_` + your device SN (lowercase)
+3. Refer to [entity_id_reference.md](entity_id_reference.md) to confirm IDs
+4. If your SN is not `HS2C12600262HH4`, perform a global search and replace for `hs2c12600262hh4` in the configuration file.
 
-## 3. 创建仪表盘
+## 3. Create Dashboard
 
-1. **概览** → 右上角 ⋮ → **添加仪表盘**
-2. 名称：`Jackery 能源`（可自定义）
-3. 进入新仪表盘 → **编辑** → 右上角 ⋮ → **原始配置编辑器**
-4. 粘贴 [lovelace_dashboard_jackery.yaml](lovelace_dashboard_jackery.yaml) 的全部内容
-5. 保存并退出编辑模式
+1. **Overview** → Top right ⋮ → **Add Dashboard**
+2. Name: `Jackery Energy` (Customizable)
+3. Enter the new dashboard → **Edit** → Top right ⋮ → **Raw Configuration Editor**
+4. Paste the entire contents of [lovelace_dashboard_jackery.yaml](lovelace_dashboard_jackery.yaml)
+5. Save and exit edit mode.
 
-## 4. 仅使用能量流卡片
+## 4. Using Only the Energy Flow Card
 
-若只需能量流图，可单独添加一张卡片，配置见项目根目录 [energy_flow_card_config.yaml](../energy_flow_card_config.yaml)。使用前同样需将实体 ID 中的 SN 替换为实际值。
+If you only need the energy flow diagram, you can add a single card separately. Configuration can be found in the project root directory [energy_flow_card_config.yaml](../energy_flow_card_config.yaml). Remember to replace the SN in the entity IDs with your actual value before use.
 
-## 5. 多主机
+## 5. Multiple Hosts
 
-每台 DIY3 主机有独立 SN 前缀。可：
+Each DIY3 host has a unique SN prefix. You can:
 
-- 为每台设备复制一份 section，并替换对应 entity_id；或
-- 为每台主机创建独立仪表盘
+- Duplicate a section for each device and replace the corresponding entity_id; or
+- Create a separate dashboard for each host.
 
-## 6. 常见问题
+## 6. Troubleshooting
 
-| 现象 | 处理 |
+| Symptom | Resolution |
 |------|------|
-| 卡片显示「Custom element doesn't exist」 | 确认 HACS 卡片已安装并刷新页面 |
-| 实体显示 unavailable | 检查 MQTT 与 Jackery 集成连接 |
-| 能量流图某路无数据 | 在开发者工具确认对应 sensor 有数值 |
-| 控制按钮无效 | 核对 switch/select/number/button 的 entity_id 是否为 `main_*` 格式 |
-| 子设备区显示「配置错误」 | 多为未安装 `auto-entities`；请使用最新版 `lovelace_dashboard_jackery.yaml`（已改为原生 entities） |
-| 新增 CT/插座后看板无实体 | 在开发者工具复制新 entity_id，追加到看板「子设备」区的 `entities` 列表 |
+| Card displays "Custom element doesn't exist" | Confirm HACS cards are installed and refresh the page. |
+| Entities show "unavailable" | Check MQTT and Jackery integration connectivity. |
+| A specific path in the energy flow diagram has no data | Confirm the corresponding sensor has a value in Developer Tools. |
+| Control buttons are ineffective | Verify if the entity_id for switch/select/number/button follows the `main_*` format. |
+| Sub-device section displays "Configuration Error" | Usually due to missing `auto-entities`; please use the latest `lovelace_dashboard_jackery.yaml` (which has been switched to native entities). |
+| New CT/Plug added but not appearing on the dashboard | Copy the new entity_id from Developer Tools and append it to the `entities` list in the "Sub-devices" section of the dashboard. |
