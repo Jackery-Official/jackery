@@ -193,8 +193,8 @@ The default device page presents more than 40 entities in a flat layout. It prov
 ### 7.1 Complete Visual Dashboard (Recommended)
 
 1. Install **Mushroom Cards** and **Power Flow Card Plus** through HACS.
-2. Follow [docs/lovelace_dashboard_setup.md](../docs/lovelace_dashboard_setup.md) to create the **Jackery Energy** dashboard.
-3. Use [docs/lovelace_dashboard_jackery.yaml](../docs/lovelace_dashboard_jackery.yaml) as the base configuration.
+2. Follow [docs/lovelace_dashboard_setup.md](./docs/lovelace_dashboard_setup.md) to create the **Jackery Energy** dashboard.
+3. Use [docs/lovelace_dashboard_jackery.yaml](./docs/lovelace_dashboard_jackery.yaml) as the base configuration.
 4. For entity ID naming rules, see [docs/entity_id_reference.md](../../docs/entity_id_reference.md).
 
 Dashboard layout: status chips at the top → energy flow diagram → battery/PV/grid metrics → controls → collapsible detailed data.
