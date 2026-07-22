@@ -201,7 +201,7 @@ Dashboard layout: status chips at the top → energy flow diagram → battery/PV
 
 ### 7.2 Energy Flow Card Only
 
-The project-root file [energy_flow_card_config.yaml](../../energy_flow_card_config.yaml) provides a single-card configuration. Replace the SN in each entity ID with the actual value, for example `sensor.jackery_hs2c12600262hh4_solar_power`:
+The project-root file [energy_flow_card_config.yaml](./energy_flow_card_config.yaml) provides a single-card configuration. Replace the SN in each entity ID with the actual value, for example `sensor.jackery_hs2c12600262hh4_solar_power`:
 
 ```yaml
 type: custom:power-flow-card-plus
